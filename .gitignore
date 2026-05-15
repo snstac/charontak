@@ -1,9 +1,12 @@
 /.venv/
+/charontak-*.tar.gz
 __pycache__/
 *.pyc
 *.egg-info/
 .eggs/
 dist/
 build/
+deb_dist/
+faux_latest/
 .pytest_cache/
 .coverage

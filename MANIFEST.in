@@ -1,0 +1,6 @@
+include README.md pyproject.toml
+recursive-include debian *
+recursive-include cockpit-charontak *.json *.html *.js
+recursive-include packaging *
+recursive-include examples *.ini *.default
+recursive-include systemd *.service

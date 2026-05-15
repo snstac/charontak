@@ -1,0 +1,64 @@
+#!/bin/bash
+# postinst — pattern from snstac/adsbcot (system user + enable service).
+
+set -e
+
+echo "charontak post-install"
+
+# shellcheck source=/dev/null
+[ -f "/etc/default/charontak" ] && . "/etc/default/charontak"
+
+[ -z "${SERVER_HOME:-}" ] && SERVER_HOME=/run/charontak
+[ -z "${SERVER_USER:-}" ] && SERVER_USER=charontak
+[ -z "${SERVER_NAME:-}" ] && SERVER_NAME="Charontak PyTAK bridge system user"
+[ -z "${SERVER_GROUP:-}" ] && SERVER_GROUP=charontak
+
+ADDGROUP=""
+
+if ! getent group "$SERVER_GROUP" >/dev/null 2>&1; then
+  echo "Adding group $SERVER_GROUP.."
+  addgroup --quiet --system "$SERVER_GROUP" 2>/dev/null || groupadd --system "$SERVER_GROUP" 2>/dev/null || true
+fi
+
+test -d "$SERVER_HOME" || mkdir -p "$SERVER_HOME"
+
+if ! getent passwd "$SERVER_USER" >/dev/null 2>&1; then
+  echo "Adding system user $SERVER_USER.."
+  adduser --quiet \
+    --system \
+    --ingroup "$SERVER_GROUP" \
+    --no-create-home \
+    --disabled-password \
+    "$SERVER_USER" 2>/dev/null || true
+fi
+
+usermod -c "$SERVER_NAME" \
+  -d "$SERVER_HOME" \
+  -g "$SERVER_GROUP" \
+  "$SERVER_USER" 2>/dev/null || true
+
+if ! dpkg-statoverride --list "$SERVER_HOME" >/dev/null 2>&1; then
+  chown -R "$SERVER_USER":adm "$SERVER_HOME" 2>/dev/null || chown -R "$SERVER_USER:$SERVER_GROUP" "$SERVER_HOME"
+  chmod u=rwx,g=rxs,o= "$SERVER_HOME" 2>/dev/null || true
+fi
+
+if [ -n "${ADDGROUP:-}" ] && command -v adduser >/dev/null 2>&1; then
+  if ! groups "$SERVER_USER" | cut -d: -f2 | grep -qw "$ADDGROUP"; then
+    adduser "$SERVER_USER" "$ADDGROUP" 2>/dev/null || true
+  fi
+fi
+
+if [ ! -f /etc/charontak.ini ] && [ -f /usr/share/charontak/charontak.ini.example ]; then
+  cp /usr/share/charontak/charontak.ini.example /etc/charontak.ini
+  chmod 0644 /etc/charontak.ini
+fi
+
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable charontak.service >/dev/null 2>&1 || true
+
+echo "---- charontak install complete ----"
+echo "Configure: sudo nano /etc/charontak.ini"
+echo "Start:     sudo systemctl start charontak.service"
+echo "Logs:      sudo journalctl -fu charontak"
+
+exit 0

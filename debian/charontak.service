@@ -1,0 +1,25 @@
+#
+# Charontak systemd unit (Debian/Fedora packages install to /lib/systemd/system).
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+[Unit]
+Description=Charontak PyTAK CoT echelon bridge
+Documentation=https://github.com/snstac/charontak
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=charontak
+Group=charontak
+EnvironmentFile=-/etc/default/charontak
+RuntimeDirectory=charontak
+ExecStart=/usr/bin/charontak --config ${CHARONTAK_CONFIG}
+Restart=on-failure
+RestartSec=3
+SyslogIdentifier=charontak
+
+[Install]
+WantedBy=multi-user.target

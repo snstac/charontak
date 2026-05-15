@@ -1,16 +1,24 @@
+#
+# Example systemd unit for Charontak (manual installs).
+#
+# Debian/Ubuntu packages ship debian/charontak.service instead (User=charontak,
+# ExecStart=/usr/bin/charontak). For pip/venv installs, symlink charontak into a
+# directory on PATH or override ExecStart.
+#
+
 [Unit]
 Description=Charontak PyTAK CoT echelon bridge
+Documentation=https://github.com/snstac/charontak
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 EnvironmentFile=-/etc/default/charontak
-ExecStart=/usr/local/bin/charontak --config ${CHARONTAK_CONFIG:-/etc/charontak.ini}
+ExecStart=/usr/bin/charontak --config ${CHARONTAK_CONFIG:-/etc/charontak.ini}
 Restart=on-failure
 RestartSec=3
-# Uncomment to propagate DEBUG= from environment:
-# Environment=DEBUG=
+SyslogIdentifier=charontak
 
 [Install]
 WantedBy=multi-user.target

@@ -1,0 +1,5 @@
+#
+# Packaged default (idle until [lane:*] enabled). Copied to /etc/charontak.ini on first install only.
+
+[charontak]
+DEBUG = false

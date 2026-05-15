@@ -34,6 +34,15 @@ Documentation = "https://pytak.rtfd.io/"
 
 [tool.setuptools.packages.find]
 where = ["."]
+include = ["charontak*"]
+
+[tool.setuptools.data-files]
+"share/cockpit/charontak" = [
+  "cockpit-charontak/manifest.json",
+  "cockpit-charontak/index.html",
+  "cockpit-charontak/charontak.js",
+]
+"share/charontak" = ["packaging/charontak.ini.example"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
