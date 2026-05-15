@@ -1,0 +1,10 @@
+---
+
+# Minimal inventory — set `ansible_host`, `ansible_user`, and SSH for your gateways.
+
+all:
+  children:
+    gateways:
+      hosts:
+        edge-01.example.com:
+          ansible_python_interpreter: auto_silent

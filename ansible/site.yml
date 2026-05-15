@@ -1,0 +1,8 @@
+---
+- name: Deploy Charontak
+  hosts: gateways
+  become: true
+  collections:
+    - ansible.posix
+  roles:
+    - role: charontak

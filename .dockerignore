@@ -1,0 +1,12 @@
+.git
+.venv
+**/__pycache__
+*.pyc
+.pytest_cache
+*.egg-info
+.eggs
+dist
+build
+.cursor
+.idea
+*.md.bak

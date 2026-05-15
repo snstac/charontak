@@ -1,0 +1,10 @@
+---
+
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart Charontak docker stack
+  ansible.builtin.systemd_service:
+    name: charontak-docker
+    state: restarted

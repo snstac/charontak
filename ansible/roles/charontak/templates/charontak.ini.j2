@@ -1,0 +1,20 @@
+# Managed by Ansible — role charontak
+
+[charontak]
+{% for opt, val in charontak_global_options | dictsort %}
+{{ opt }} = {{ val }}
+{% endfor %}
+
+{% if charontak_ini_extra | default('') | length > 0 %}
+{{ charontak_ini_extra }}
+{% endif %}
+
+{% for lane in charontak_lanes %}
+[lane:{{ lane.name }}]
+{% for k, v in lane | dictsort %}
+{% if k != 'name' %}
+{{ k }} = {{ v }}
+{% endif %}
+{% endfor %}
+
+{% endfor %}

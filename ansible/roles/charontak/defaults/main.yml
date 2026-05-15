@@ -1,0 +1,33 @@
+---
+
+charontak_deploy: native
+# Set to `docker` for the Compose-based image deployment.
+
+# HTTPS (default for ansible.builtin.git on targets without deploy keys).
+# SSH equivalent: git@github.com:snstac/charontak.git
+charontak_git_repo: "https://github.com/snstac/charontak.git"
+charontak_git_version: main
+
+charontak_sync_from_controller: false
+charontak_sync_src: "{{ playbook_dir }}/../"
+charontak_sync_delete: false
+
+charontak_install_dir: "/opt/charontak"
+charontak_repo_dir: "{{ charontak_install_dir }}/charontak"
+
+charontak_docker_profile: bridge
+charontak_docker_image_override: ""
+charontak_cockpit_port: "9090"
+
+charontak_cockpit_rpm_optional: true
+charontak_pip_break_system_packages: true
+charontak_pip_editable: false
+
+# INI body (see templates/charontak.ini.j2)
+charontak_global_options:
+  DEBUG: "false"
+
+charontak_lanes: []
+
+# Append raw INI fragments after the global section (optional).
+charontak_ini_extra: ""

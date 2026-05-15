@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "charontak"
+version = "0.1.0"
+description = "PyTAK CoT bridge between TAK transports (lanes / echelons)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Charontak contributors" }]
+keywords = ["TAK", "CoT", "pytak", "ATAK"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "pytak>=7.0.0",
+]
+
+[project.optional-dependencies]
+with_takproto = ["pytak[with_takproto]"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.23"]
+
+[project.scripts]
+charontak = "charontak.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/snstac/charontak"
+Repository = "https://github.com/snstac/charontak"
+Issues = "https://github.com/snstac/charontak/issues"
+Documentation = "https://pytak.rtfd.io/"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
