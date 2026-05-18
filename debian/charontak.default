@@ -8,4 +8,4 @@ CHARONTAK_CONFIG=/etc/charontak.ini
 SERVER_USER=charontak
 SERVER_GROUP=charontak
 SERVER_HOME=/run/charontak
-SERVER_NAME=Charontak PyTAK bridge system user
+SERVER_NAME="Charontak PyTAK bridge system user"

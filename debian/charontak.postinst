@@ -6,7 +6,13 @@ set -e
 echo "charontak post-install"
 
 # shellcheck source=/dev/null
-[ -f "/etc/default/charontak" ] && . "/etc/default/charontak"
+# Values in /etc/default/charontak must be quoted if they contain spaces.
+if [ -f "/etc/default/charontak" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "/etc/default/charontak"
+  set +a
+fi
 
 [ -z "${SERVER_HOME:-}" ] && SERVER_HOME=/run/charontak
 [ -z "${SERVER_USER:-}" ] && SERVER_USER=charontak
