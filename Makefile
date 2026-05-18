@@ -4,6 +4,7 @@
 
 REPO_NAME := charontak
 PKG_NAME := charontak
+DEB_BUILD_DIR = $(shell ls -d deb_dist/$(REPO_NAME)-* 2>/dev/null | head -n1)
 
 SHELL := /bin/bash
 PYTHON := $(shell command -v python3 2>/dev/null || command -v python)
@@ -42,15 +43,16 @@ deb_dist:
 	rm -rf deb_dist/
 	$(PYTHON) setup.py --command-packages=stdeb.command sdist_dsc
 
-deb_custom:
-	cp debian/$(REPO_NAME).default $(wildcard deb_dist/*/debian)/$(REPO_NAME).default
-	cp debian/$(REPO_NAME).postinst $(wildcard deb_dist/*/debian)/$(REPO_NAME).postinst
-	cp debian/$(REPO_NAME).service $(wildcard deb_dist/*/debian)/$(REPO_NAME).service
-	cp debian/$(REPO_NAME).install $(wildcard deb_dist/*/debian)/$(REPO_NAME).install
-	cat debian/rules_fragment >> $$(echo deb_dist/*/debian/rules)
+deb_custom: deb_dist
+	@test -n "$(DEB_BUILD_DIR)" || { echo "No deb_dist/$(REPO_NAME)-*; setup.py metadata missing?" >&2; exit 1; }
+	cp debian/$(REPO_NAME).default $(DEB_BUILD_DIR)/debian/$(REPO_NAME).default
+	cp debian/$(REPO_NAME).postinst $(DEB_BUILD_DIR)/debian/$(REPO_NAME).postinst
+	cp debian/$(REPO_NAME).service $(DEB_BUILD_DIR)/debian/$(REPO_NAME).service
+	cp debian/$(REPO_NAME).install $(DEB_BUILD_DIR)/debian/$(REPO_NAME).install
+	cat debian/rules_fragment >> $(DEB_BUILD_DIR)/debian/rules
 
-bdist_deb: deb_dist deb_custom
-	cd deb_dist/$(REPO_NAME)-*/ && dpkg-buildpackage -rfakeroot -uc -us
+bdist_deb: deb_custom
+	cd "$(DEB_BUILD_DIR)" && dpkg-buildpackage -rfakeroot -uc -us
 
 faux_latest:
 	mkdir -p faux_latest
