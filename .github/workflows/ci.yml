@@ -5,6 +5,12 @@ on:
     branches: ["**"]
     tags: ["*"]
   pull_request:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Create/update GitHub Release with packages (use with tag checkout or push a tag)"
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -29,7 +35,9 @@ jobs:
   package-deb:
     name: Build Debian package
     needs: test
-    if: startsWith(github.ref, 'refs/tags/')
+    if: >-
+      startsWith(github.ref, 'refs/tags/') ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release)
     runs-on: ubuntu-22.04
     env:
       DEB_BUILD_OPTIONS: nocheck
@@ -47,7 +55,9 @@ jobs:
   package-rpm:
     name: Build RPM package
     needs: test
-    if: startsWith(github.ref, 'refs/tags/')
+    if: >-
+      startsWith(github.ref, 'refs/tags/') ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release)
     runs-on: ubuntu-22.04
     container:
       image: fedora:latest
@@ -61,3 +71,27 @@ jobs:
         with:
           name: artifact-rpm
           path: dist/*.rpm
+
+  release:
+    name: Publish GitHub Release
+    needs: [package-deb, package-rpm]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: artifact-deb
+          path: dist/
+      - uses: actions/download-artifact@v4
+        with:
+          name: artifact-rpm
+          path: dist/
+      - name: List packages
+        run: ls -la dist/
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*
