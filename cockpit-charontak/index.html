@@ -21,7 +21,7 @@
   <pre id="out-status" style="white-space: pre-wrap; background: #f5f5f5; padding: 1em"></pre>
 
   <h2>Config <code>/etc/charontak.ini</code></h2>
-  <p><small>Requires administrator access. Save overwrites the file (back it up first).</small></p>
+  <p><small>Load/save uses administrator access (polkit/sudo prompt). Save checks for on-disk changes before overwriting.</small></p>
   <textarea id="cfg" rows="22" cols="100" style="width:100%; font-family: monospace"></textarea>
   <div style="margin-top:0.5em">
     <button id="btn-load-cfg" class="pf-c-button pf-m-secondary">Load config</button>

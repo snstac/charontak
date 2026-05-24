@@ -8,5 +8,6 @@ dist/
 build/
 deb_dist/
 faux_latest/
+.local-staging/
 .pytest_cache/
 .coverage

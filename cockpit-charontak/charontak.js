@@ -6,6 +6,9 @@
 
 const UNIT = "charontak.service";
 const CFG_PATH = "/etc/charontak.ini";
+const CFG_FILE = cockpit.file(CFG_PATH, { superuser: "require" });
+
+let cfgTag = null;
 
 function notify(message, priority) {
     const p = priority || "info";
@@ -50,14 +53,14 @@ function recentJournal() {
 
 function loadConfig() {
     const ta = document.querySelector("#cfg");
-    cockpit
-        .file(CFG_PATH)
-        .read()
-        .then((content) => {
+    CFG_FILE.read()
+        .then((content, tag) => {
             ta.value = content || "";
+            cfgTag = tag;
         })
         .catch((ex) => {
             ta.value = "";
+            cfgTag = null;
             notify(String(ex), "danger");
         });
 }
@@ -65,11 +68,23 @@ function loadConfig() {
 function saveConfig() {
     const ta = document.querySelector("#cfg");
     const text = ta.value;
-    cockpit
-        .file(CFG_PATH)
-        .replace(text)
-        .then(() => notify("Saved " + CFG_PATH, "info"))
-        .catch((ex) => notify(String(ex), "danger"));
+    const promise = cfgTag ? CFG_FILE.replace(text, cfgTag) : CFG_FILE.replace(text);
+
+    promise
+        .then((newTag) => {
+            cfgTag = newTag;
+            notify("Saved " + CFG_PATH, "info");
+        })
+        .catch((ex) => {
+            if (ex && ex.problem === "change-conflict") {
+                notify(
+                    "Config changed on disk — reload, merge your edits, then save again.",
+                    "warning"
+                );
+            } else {
+                notify(String(ex), "danger");
+            }
+        });
 }
 
 document.addEventListener("DOMContentLoaded", () => {

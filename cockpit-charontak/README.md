@@ -9,4 +9,4 @@ sudo make install
 
 Reload Cockpit — **Charontak** appears under the tools menu.
 
-`cockpit.file` may require polkit rules for editing `/etc/charontak.ini` under your distro; operate as admin in Cockpit.
+Load/save uses `cockpit.file(..., { superuser: "require" })` so only users who can escalate (sudo/wheel) can write `/etc/charontak.ini`. Saves pass the file tag from the last read to avoid overwriting concurrent edits.

@@ -1,4 +1,5 @@
-PREFIX ?= /usr/local
+# Match Debian/RPM packages (/usr/share/cockpit/charontak). Override: make install PREFIX=/usr/local
+PREFIX ?= /usr
 DESTDIR ?=
 PKGDIR = $(DESTDIR)$(PREFIX)/share/cockpit/charontak
 

@@ -15,7 +15,8 @@ Wants=network-online.target
 [Service]
 Type=simple
 EnvironmentFile=-/etc/default/charontak
-ExecStart=/usr/bin/charontak --config ${CHARONTAK_CONFIG:-/etc/charontak.ini}
+# CHARONTAK_CONFIG comes from EnvironmentFile (/etc/default/charontak); CLI default is /etc/charontak.ini
+ExecStart=/usr/bin/charontak
 Restart=on-failure
 RestartSec=3
 SyslogIdentifier=charontak
