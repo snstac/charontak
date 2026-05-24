@@ -11,6 +11,7 @@ from charontak.config import (
     load_config_parser,
     section_for_side,
     truthy,
+    validate_cot_url,
 )
 
 
@@ -64,3 +65,8 @@ def example_ini(tmp_path: Path) -> Path:
 def test_default_config_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("CHARONTAK_CONFIG", raising=False)
     assert default_config_path() == Path("/etc/charontak.ini")
+
+
+def test_validate_cot_url_rejects_tcp_ppt() -> None:
+    with pytest.raises(ValueError, match="tcp\\+ppt"):
+        validate_cot_url("tcp+ppt://127.0.0.1:8087", lane="x", role="ingress")

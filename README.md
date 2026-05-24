@@ -74,7 +74,7 @@ Environment overrides (same as PyTAK-style tooling):
 | `CHARONTAK_CONFIG` | Default path if `--config` omitted |
 | `DEBUG`           | Verbose logs when truthy           |
 
-Logging goes to stderr; under **systemd** use `journalctl -u charontak`.
+Logging goes to stderr; under **systemd** use `journalctl -u charontak`. On startup, each enabled lane logs its **ingress → egress** plan and connection steps (`setup`, `ingress connected`, `active`); enrollment `token=` values in `tak://` URLs are redacted in logs.
 
 ## systemd
 

@@ -124,6 +124,46 @@ def default_config_path() -> Path:
     return Path(os.environ.get("CHARONTAK_CONFIG", "/etc/charontak.ini"))
 
 
+def validate_cot_url(url: str, *, lane: str, role: str) -> None:
+    """Fail fast with a clear message when PyTAK cannot handle a URL scheme."""
+
+    from urllib.parse import urlparse
+
+    scheme = urlparse(url).scheme.lower()
+    if not scheme:
+        raise ValueError(f"Lane {lane!r} {role} has empty or invalid URL: {url!r}")
+
+    # PyTAK protocol_factory accepts: tcp, tls/ssl, udp*, log*, file*, tak
+    if scheme == "tcp":
+        return
+    if "udp" in scheme:
+        return
+    if scheme in ("tls", "ssl", "tak"):
+        return
+    if "log" in scheme or "file" in scheme:
+        return
+    if scheme.startswith("tcp+"):
+        raise ValueError(
+            f"Lane {lane!r} {role} uses {url!r}: PyTAK does not support scheme {scheme!r}. "
+            "For TCP listen, PyTAK only supports outbound tcp:// (client). "
+            "Disable the lane or point feeders at udp+ro:// mesh instead."
+        )
+    raise ValueError(
+        f"Lane {lane!r} {role} uses unsupported COT_URL scheme {scheme!r} ({url!r}). "
+        "See https://pytak.rtfd.io/en/stable/configuration/"
+    )
+
+
+def validate_lanes(lanes: tuple[LaneSpec, ...]) -> None:
+    for ln in lanes:
+        ing = ln.merged.get("ingress_cot_url") or ln.merged.get("INGRESS_COT_URL")
+        egr = ln.merged.get("egress_cot_url") or ln.merged.get("EGRESS_COT_URL")
+        if ing:
+            validate_cot_url(ing, lane=ln.name, role="ingress")
+        if egr:
+            validate_cot_url(egr, lane=ln.name, role="egress")
+
+
 def lane_mode(lane: LaneSpec) -> str:
     raw = (lane.merged.get("mode") or "forward").strip().lower()
     if raw not in ("forward", "reverse", "duplex"):

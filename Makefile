@@ -9,7 +9,7 @@ DEB_BUILD_DIR = $(shell ls -d deb_dist/$(REPO_NAME)-* 2>/dev/null | head -n1)
 SHELL := /bin/bash
 PYTHON := $(shell command -v python3 2>/dev/null || command -v python)
 
-.PHONY: install editable uninstall pep257 pylint flake8 pytest clean faux_latest package deb_dist deb_custom bdist_deb install_test_requirements test test_cov
+.PHONY: install editable uninstall deploy install-system pep257 pylint flake8 pytest clean faux_latest package deb_dist deb_custom bdist_deb install_test_requirements test test_cov
 
 prepare:
 	mkdir -p build/
@@ -22,6 +22,10 @@ install_test_requirements:
 
 install:
 	$(PYTHON) -m pip install .
+
+# System install + restart (requires sudo /usr/bin/python3 NOPASSWD or password).
+deploy install-system:
+	sudo /usr/bin/python3 scripts/install_as_root.py
 
 uninstall:
 	$(PYTHON) -m pip uninstall -y $(PKG_NAME)

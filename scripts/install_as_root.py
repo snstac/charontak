@@ -49,14 +49,28 @@ def main() -> int:
         usr_bin.symlink_to(bin_path)
         print(f"Linked {usr_bin} -> {bin_path}")
 
-    subprocess.run(["systemctl", "daemon-reload"], check=False)
+    subprocess.run(["systemctl", "daemon-reload"], check=True)
     subprocess.run(["systemctl", "enable", "charontak.service"], check=False)
-    subprocess.run(["systemctl", "restart", "charontak.service"], check=False)
+    subprocess.run(["systemctl", "restart", "charontak.service"], check=True)
 
     which = str(bin_path)
     print(f"charontak binary: {which}")
     print("Cockpit: reload browser → Tools → Charontak")
-    print("Start bridge: systemctl start charontak")
+
+    import time
+
+    time.sleep(1)
+    status = subprocess.run(
+        ["systemctl", "is-active", "charontak.service"],
+        capture_output=True,
+        text=True,
+    )
+    print(f"charontak.service: {status.stdout.strip() or status.stderr.strip() or 'unknown'}")
+    print("--- recent startup log ---")
+    subprocess.run(
+        ["journalctl", "-u", "charontak.service", "-n", "20", "--no-pager"],
+        check=False,
+    )
     return 0
 
 

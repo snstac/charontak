@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import pytak
 
 from charontak.config import LaneSpec, SectionDict, lane_mode, section_for_side
+from charontak.log_urls import redact_cot_url
 
 LOG = logging.getLogger("charontak.bridge")
 
@@ -37,6 +38,25 @@ def _require_urls(lane: LaneSpec) -> Tuple[str, str]:
             f"Lane {lane.name!r} needs ingress_cot_url and egress_cot_url in [{lane.raw_section}]"
         )
     return ing, egr
+
+
+def _lane_label(lane: LaneSpec) -> str:
+    return f"[{lane.raw_section}]"
+
+
+def log_lane_plan(lanes: Tuple[LaneSpec, ...]) -> None:
+    """Log each enabled lane's planned ingress → egress before connections open."""
+
+    for lane in lanes:
+        ing_url, egr_url = _require_urls(lane)
+        mode = lane_mode(lane)
+        LOG.info(
+            "%s plan %s: %s -> %s",
+            _lane_label(lane),
+            mode,
+            redact_cot_url(ing_url),
+            redact_cot_url(egr_url),
+        )
 
 
 async def _close_udp_writer(writer: Any) -> None:
@@ -73,12 +93,24 @@ async def run_lane(lane: LaneSpec) -> None:
     mode = lane_mode(lane)
     merged = dict(lane.merged)
     qsz = _queue_size(merged)
+    label = _lane_label(lane)
+
+    LOG.info(
+        "%s setup %s: %s -> %s",
+        label,
+        mode,
+        redact_cot_url(ing_url),
+        redact_cot_url(egr_url),
+    )
 
     ing = section_for_side(lane, cot_url=ing_url, section_suffix="ingress")
     egr = section_for_side(lane, cot_url=egr_url, section_suffix="egress")
 
     r_ing, w_ing = await pytak.protocol_factory(ing)
+    LOG.info("%s ingress connected", label)
+
     r_egr, w_egr = await pytak.protocol_factory(egr)
+    LOG.info("%s egress connected", label)
 
     tasks: List[asyncio.Task] = []
 
@@ -112,11 +144,12 @@ async def run_lane(lane: LaneSpec) -> None:
             tasks.append(asyncio.create_task(pytak.TXWorker(rev, ing, w_ing).run(), name=f"{lane.name}-tx-ingress-rev"))
 
         LOG.info(
-            "Lane %r started (%s) %s -> %s",
-            lane.name,
+            "%s active (%s, queue=%s) %s -> %s",
+            label,
             mode,
-            ing_url,
-            egr_url,
+            qsz,
+            redact_cot_url(ing_url),
+            redact_cot_url(egr_url),
         )
         await asyncio.gather(*tasks)
 
@@ -139,6 +172,9 @@ async def run_all(lanes: Tuple[LaneSpec, ...]) -> None:
         LOG.warning("No enabled lanes; idle until shutdown (enable a [lane:*] section).")
         await asyncio.Event().wait()
         return
+
+    LOG.info("Starting %s lane(s)", len(lanes))
+    log_lane_plan(lanes)
 
     lane_tasks = [asyncio.create_task(run_lane(ln), name=f"lane-{ln.name}") for ln in lanes]
     await asyncio.gather(*lane_tasks)

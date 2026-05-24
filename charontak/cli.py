@@ -7,10 +7,20 @@ import asyncio
 import logging
 import os
 import sys
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from charontak.bridge import run_all
-from charontak.config import truthy, build_lane_specs, default_config_path, load_config_parser
+from charontak.config import truthy, build_lane_specs, default_config_path, load_config_parser, validate_lanes
+
+LOG = logging.getLogger("charontak")
+
+
+def _package_version() -> str:
+    try:
+        return version("charontak")
+    except PackageNotFoundError:
+        return "unknown"
 
 
 def main() -> None:
@@ -45,7 +55,22 @@ def main() -> None:
         logging.getLogger().setLevel(logging.DEBUG)
 
     try:
+        validate_lanes(lanes)
+    except ValueError as exc:
+        LOG.error("%s", exc)
+        sys.exit(1)
+
+    lane_word = "lane" if len(lanes) == 1 else "lanes"
+    LOG.info(
+        "Charontak %s — config %s (%s %s)",
+        _package_version(),
+        args.config,
+        len(lanes),
+        lane_word,
+    )
+
+    try:
         asyncio.run(run_all(lanes))
     except KeyboardInterrupt:
-        logging.getLogger("charontak").info("Interrupted.")
+        LOG.info("Interrupted.")
         sys.exit(130)

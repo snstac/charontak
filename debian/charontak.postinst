@@ -61,10 +61,11 @@ fi
 
 systemctl daemon-reload >/dev/null 2>&1 || true
 systemctl enable charontak.service >/dev/null 2>&1 || true
+systemctl restart charontak.service >/dev/null 2>&1 || systemctl start charontak.service >/dev/null 2>&1 || true
 
 echo "---- charontak install complete ----"
 echo "Configure: sudo nano /etc/charontak.ini"
-echo "Start:     sudo systemctl start charontak.service"
+echo "Status:    sudo systemctl status charontak.service"
 echo "Logs:      sudo journalctl -fu charontak"
 
 exit 0

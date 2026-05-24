@@ -46,6 +46,41 @@ def test_lane_mode_bad() -> None:
 
 
 @pytest.mark.asyncio
+async def test_run_lane_logs_setup_before_connect(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    import logging
+
+    caplog.set_level(logging.INFO, logger="charontak.bridge")
+
+    async def fake_pf(cfg):
+        return BlockReader(), MagicMock()
+
+    monkeypatch.setattr("charontak.bridge.pytak.protocol_factory", fake_pf)
+
+    ln = LaneSpec(
+        name="t",
+        raw_section="lane:t",
+        merged={
+            "enabled": "true",
+            "mode": "forward",
+            "ingress_cot_url": "udp://239.2.3.4:6969",
+            "egress_cot_url": "tcp://127.0.0.1:18087",
+        },
+    )
+
+    task = asyncio.create_task(run_lane(ln))
+    await asyncio.sleep(0.1)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    messages = [r.message for r in caplog.records if r.name == "charontak.bridge"]
+    assert any("setup forward" in m for m in messages)
+    assert any("ingress connected" in m for m in messages)
+
+
+@pytest.mark.asyncio
 async def test_forward_one_cot_via_mocks(monkeypatch: pytest.MonkeyPatch) -> None:
     sent: list[bytes] = []
 
