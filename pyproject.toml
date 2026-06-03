@@ -18,7 +18,7 @@ dynamic = [
 
 [project.optional-dependencies]
 with_takproto = ["pytak[with_takproto]"]
-dev = ["pytest>=7.0", "pytest-asyncio>=0.23"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.23", "cryptography>=39.0.0"]
 
 [project.scripts]
 charontak = "charontak.cli:main"
