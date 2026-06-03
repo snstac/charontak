@@ -14,6 +14,7 @@ from charontak.config import (
     truthy,
     validate_cot_url,
     validate_lane_udp_bind_conflicts,
+    validate_loopback_udp_bind_url,
 )
 
 
@@ -105,3 +106,22 @@ def test_validate_lane_udp_bind_conflicts() -> None:
     )
     with pytest.raises(ValueError, match="Conflicting UDP bind"):
         validate_lane_udp_bind_conflicts(lanes)
+
+
+def test_validate_loopback_udp_bind_url() -> None:
+    with pytest.raises(ValueError, match="tcp://127.0.0.1:18087"):
+        validate_loopback_udp_bind_url(
+            "udp://127.0.0.1:18087",
+            lane="local-to-mesh",
+            role="ingress",
+        )
+    validate_loopback_udp_bind_url(
+        "udp+wo://127.0.0.1:18087",
+        lane="local-to-mesh",
+        role="egress",
+    )
+    validate_loopback_udp_bind_url(
+        "udp://239.2.3.1:6969",
+        lane="mesh",
+        role="ingress",
+    )

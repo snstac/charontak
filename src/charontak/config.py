@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import errno
 import os
+import socket
 from configparser import ConfigParser
 from dataclasses import dataclass
 from pathlib import Path
@@ -225,6 +227,80 @@ def validate_lane_udp_bind_conflicts(lanes: tuple[LaneSpec, ...]) -> None:
     )
 
 
+def validate_loopback_udp_bind_url(url: str, *, lane: str, role: str) -> None:
+    """Reject loopback unicast UDP binds that usually mean tcp:// was intended."""
+
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if "udp" not in scheme:
+        return
+
+    write_only, _read_only = _parse_udp_scheme(scheme)
+    if write_only:
+        return
+
+    host = (parsed.hostname or "").lower()
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        return
+
+    port = parsed.port
+    if port is None:
+        return
+
+    raise ValueError(
+        f"Lane {lane!r} {role} uses {url!r}: PyTAK binds a local UDP socket on loopback. "
+        f"Local CoT feeders on port {port} are usually TCP clients — use "
+        f"tcp://127.0.0.1:{port} as {role}_cot_url instead."
+    )
+
+
+def validate_udp_bind_available(
+    endpoint: tuple[str, int], *, lane: str, side: str, url: str
+) -> None:
+    """Preflight UDP bind so port conflicts fail at startup with a clear message."""
+
+    host, port = endpoint
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.bind((host, port))
+    except OSError as exc:
+        if exc.errno != errno.EADDRINUSE:
+            raise
+        hint = ""
+        if host in ("127.0.0.1", "localhost", "::1"):
+            hint = (
+                f" For a local TCP CoT feeder on port {port}, use "
+                f"tcp://127.0.0.1:{port} instead of udp://."
+            )
+        raise ValueError(
+            f"Lane {lane!r} {side} cannot bind UDP {url!r}: address already in use."
+            f"{hint} Check: ss -ulnp sport = :{port}"
+        ) from exc
+    finally:
+        sock.close()
+
+
+def validate_lane_udp_binds(lanes: tuple[LaneSpec, ...]) -> None:
+    """Validate UDP bind URLs and that each endpoint is available."""
+
+    validate_lane_udp_bind_conflicts(lanes)
+
+    checked: set[tuple[str, int]] = set()
+    for ln in lanes:
+        for side, endpoint in lane_udp_bind_endpoints(ln):
+            if side == "ingress":
+                url_key = ln.merged.get("ingress_cot_url") or ln.merged.get("INGRESS_COT_URL") or ""
+            else:
+                url_key = ln.merged.get("egress_cot_url") or ln.merged.get("EGRESS_COT_URL") or ""
+            validate_loopback_udp_bind_url(url_key, lane=ln.name, role=side)
+            if endpoint in checked:
+                continue
+            checked.add(endpoint)
+            validate_udp_bind_available(endpoint, lane=ln.name, side=side, url=url_key)
+
+
 def validate_lanes(lanes: tuple[LaneSpec, ...]) -> None:
     for ln in lanes:
         ing = ln.merged.get("ingress_cot_url") or ln.merged.get("INGRESS_COT_URL")
@@ -233,7 +309,7 @@ def validate_lanes(lanes: tuple[LaneSpec, ...]) -> None:
             validate_cot_url(ing, lane=ln.name, role="ingress")
         if egr:
             validate_cot_url(egr, lane=ln.name, role="egress")
-    validate_lane_udp_bind_conflicts(lanes)
+    validate_lane_udp_binds(lanes)
 
 
 def lane_mode(lane: LaneSpec) -> str:

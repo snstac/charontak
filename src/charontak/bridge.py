@@ -107,6 +107,7 @@ async def run_lane(lane: LaneSpec) -> None:
     ing = section_for_side(lane, cot_url=ing_url, section_suffix="ingress")
     egr = section_for_side(lane, cot_url=egr_url, section_suffix="egress")
 
+    r_ing = w_ing = r_egr = w_egr = None
     try:
         r_ing, w_ing = await pytak.protocol_factory(ing)
     except OSError as exc:
@@ -122,6 +123,7 @@ async def run_lane(lane: LaneSpec) -> None:
     try:
         r_egr, w_egr = await pytak.protocol_factory(egr)
     except OSError as exc:
+        await _close_udp_writer(w_ing)
         if exc.errno == errno.EADDRINUSE:
             raise OSError(
                 exc.errno,
