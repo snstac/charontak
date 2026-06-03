@@ -13,6 +13,7 @@ dynamic = [
   "license",
   "keywords",
   "classifiers",
+  "dependencies",
 ]
 
 [project.optional-dependencies]
