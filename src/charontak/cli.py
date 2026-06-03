@@ -15,6 +15,9 @@ from charontak.config import truthy, build_lane_specs, default_config_path, load
 
 LOG = logging.getLogger("charontak")
 
+# sysexits EX_CONFIG — tell systemd not to restart on bad INI (RestartPreventExitStatus).
+EXIT_CONFIG = 78
+
 
 def _package_version() -> str:
     try:
@@ -48,7 +51,7 @@ def main() -> None:
         cp = load_config_parser(args.config)
     except FileNotFoundError as exc:
         logging.getLogger("charontak").error("%s", exc)
-        sys.exit(1)
+        sys.exit(EXIT_CONFIG)
 
     globals_, lanes = build_lane_specs(cp)
     if truthy(globals_.get("debug")):
@@ -58,7 +61,7 @@ def main() -> None:
         validate_lanes(lanes)
     except ValueError as exc:
         LOG.error("%s", exc)
-        sys.exit(1)
+        sys.exit(EXIT_CONFIG)
 
     lane_word = "lane" if len(lanes) == 1 else "lanes"
     LOG.info(

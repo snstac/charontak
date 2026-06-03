@@ -18,7 +18,10 @@ EnvironmentFile=-/etc/default/charontak
 # CHARONTAK_CONFIG comes from EnvironmentFile (/etc/default/charontak); CLI default is /etc/charontak.ini
 ExecStart=/usr/bin/charontak
 Restart=on-failure
+RestartPreventExitStatus=78
 RestartSec=3
+StartLimitIntervalSec=60
+StartLimitBurst=5
 SyslogIdentifier=charontak
 
 [Install]
