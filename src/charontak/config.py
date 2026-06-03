@@ -173,12 +173,50 @@ def normalize_udp_bind_host(host: str) -> str:
     return host.lower()
 
 
+def _udp_url_host_port(url: str) -> tuple[str | None, int | None]:
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url.strip())
+    port = parsed.port
+    host = parsed.hostname
+    if host is None and port is not None and parsed.netloc.startswith(":"):
+        host = "0.0.0.0"
+    return host, port
+
+
+def normalize_cot_url(url: str) -> str:
+    """Normalize UDP CoT URLs for PyTAK.
+
+    ``udp://:PORT`` and ``udp://0.0.0.0:PORT`` mean listen on all interfaces.
+    Plain ``udp://`` on 0.0.0.0 is upgraded to ``udp+ro://`` (receive-only bind).
+    """
+
+    from urllib.parse import urlparse, urlunparse
+
+    raw = url.strip()
+    parsed = urlparse(raw)
+    scheme = parsed.scheme.lower()
+    if not scheme or "udp" not in scheme:
+        return raw
+
+    host, port = _udp_url_host_port(raw)
+    if host is None or port is None:
+        return raw
+
+    write_only, read_only = _parse_udp_scheme(scheme)
+    out_scheme = scheme
+    if not write_only and not read_only and normalize_udp_bind_host(host) == "0.0.0.0":
+        out_scheme = "udp+ro"
+
+    return urlunparse(parsed._replace(scheme=out_scheme, netloc=f"{host}:{port}"))
+
+
 def cot_url_udp_bind_endpoint(url: str) -> tuple[str, int] | None:
     """Return (host, port) when PyTAK create_udp_client would bind a reader."""
 
     from urllib.parse import urlparse
 
-    parsed = urlparse(url)
+    parsed = urlparse(normalize_cot_url(url))
     scheme = parsed.scheme.lower()
     if "udp" not in scheme:
         return None
@@ -192,9 +230,6 @@ def cot_url_udp_bind_endpoint(url: str) -> tuple[str, int] | None:
         return None
 
     host = parsed.hostname
-    if host is None and parsed.netloc.startswith(":"):
-        # udp+ro://:18087 — listen on all interfaces (PyTAK parse_url host='')
-        host = ""
     if host is None:
         return None
 
@@ -340,5 +375,5 @@ def section_for_side(
     """Build a PyTAK-style section dict with COT_URL set."""
 
     data = dict(lane.merged)
-    data["cot_url"] = cot_url
+    data["cot_url"] = normalize_cot_url(cot_url)
     return SectionDict(f"{lane.name}:{section_suffix}", data)

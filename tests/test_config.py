@@ -13,6 +13,7 @@ from charontak.config import (
     section_for_side,
     truthy,
     validate_cot_url,
+    normalize_cot_url,
     validate_lane_udp_bind_conflicts,
     validate_loopback_udp_bind_url,
 )
@@ -37,6 +38,8 @@ def test_section_for_side_cot(example_ini: Path) -> None:
     s = section_for_side(ln, cot_url="udp://10.0.0.1:4242", section_suffix="ingress")
     assert s.get("COT_URL") == "udp://10.0.0.1:4242"
     assert s.get("cot_url") == "udp://10.0.0.1:4242"
+    s2 = section_for_side(ln, cot_url="udp://:1234", section_suffix="ingress")
+    assert s2.get("cot_url") == "udp+ro://0.0.0.0:1234"
 
 
 from charontak.config import lane_mode
@@ -75,7 +78,17 @@ def test_validate_cot_url_rejects_tcp_ppt() -> None:
         validate_cot_url("tcp+ppt://127.0.0.1:8087", lane="x", role="ingress")
 
 
+def test_normalize_cot_url() -> None:
+    assert normalize_cot_url("udp://:1234") == "udp+ro://0.0.0.0:1234"
+    assert normalize_cot_url("udp://0.0.0.0:1234") == "udp+ro://0.0.0.0:1234"
+    assert normalize_cot_url("udp+ro://:1234") == "udp+ro://0.0.0.0:1234"
+    assert normalize_cot_url("udp+wo://:1234") == "udp+wo://0.0.0.0:1234"
+    assert normalize_cot_url("udp://239.2.3.1:6969") == "udp://239.2.3.1:6969"
+    assert normalize_cot_url("tls://example.com:8089") == "tls://example.com:8089"
+
+
 def test_cot_url_udp_bind_endpoint() -> None:
+    assert cot_url_udp_bind_endpoint("udp://:1234") == ("0.0.0.0", 1234)
     assert cot_url_udp_bind_endpoint("udp+ro://239.2.3.1:6969") == ("239.2.3.1", 6969)
     assert cot_url_udp_bind_endpoint("udp+ro://127.0.0.1:18087") == ("127.0.0.1", 18087)
     assert cot_url_udp_bind_endpoint("udp+ro://:18087") == ("0.0.0.0", 18087)

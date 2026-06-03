@@ -41,7 +41,7 @@ The dashed edge marks **policy/configuration territory**, not an automatically d
 
 Today **each enabled `[lane:*]`** calls PyTAK `protocol_factory` on ingress independently (`run_lane` in [`src/charontak/bridge.py`](src/charontak/bridge.py)). Two lanes configured with **the same multicast / UDP ingress** will contend on bind—configure **distinct ingress endpoints**, place an intermediate UDP broker (“pub/sub”), deploy multiple hosts, or track future support for **multi-egress from one ingress** (single reader plus multiple TLS sinks).
 
-For **local UDP feeders** on a fixed port, listen with `udp+ro://:18087` (all interfaces) or `udp+ro://127.0.0.1:18087` (loopback). Feeders send with `udp+wo://127.0.0.1:18087` (or the host IP). Do not use bare `udp://127.0.0.1:PORT` on loopback — use `udp+ro://` for listen or `tcp://` for outbound TCP feeders.
+For **local UDP feeders** on a fixed port, listen with `udp://:18087` or `udp+ro://:18087` (all interfaces, same as `0.0.0.0`) or `udp+ro://127.0.0.1:18087` (loopback). Feeders send with `udp+wo://127.0.0.1:18087` (or the host IP). Do not use bare `udp://127.0.0.1:PORT` on loopback — use `udp+ro://` for listen or `tcp://` for outbound TCP feeders.
 
 ## Install
 
