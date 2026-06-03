@@ -7,11 +7,13 @@ import pytest
 from charontak.config import (
     LaneSpec,
     build_lane_specs,
+    cot_url_udp_bind_endpoint,
     default_config_path,
     load_config_parser,
     section_for_side,
     truthy,
     validate_cot_url,
+    validate_lane_udp_bind_conflicts,
 )
 
 
@@ -70,3 +72,36 @@ def test_default_config_path(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_validate_cot_url_rejects_tcp_ppt() -> None:
     with pytest.raises(ValueError, match="tcp\\+ppt"):
         validate_cot_url("tcp+ppt://127.0.0.1:8087", lane="x", role="ingress")
+
+
+def test_cot_url_udp_bind_endpoint() -> None:
+    assert cot_url_udp_bind_endpoint("udp+ro://239.2.3.1:6969") == ("239.2.3.1", 6969)
+    assert cot_url_udp_bind_endpoint("udp+wo://239.2.3.1:6969") is None
+    assert cot_url_udp_bind_endpoint("tls://example.com:8089") is None
+
+
+def test_validate_lane_udp_bind_conflicts() -> None:
+    lanes = (
+        LaneSpec(
+            name="a",
+            raw_section="lane:a",
+            merged={
+                "enabled": "true",
+                "mode": "forward",
+                "ingress_cot_url": "udp://239.2.3.1:6969",
+                "egress_cot_url": "tls://127.0.0.1:8089",
+            },
+        ),
+        LaneSpec(
+            name="b",
+            raw_section="lane:b",
+            merged={
+                "enabled": "true",
+                "mode": "forward",
+                "ingress_cot_url": "udp://239.2.3.1:6969",
+                "egress_cot_url": "tak://example/enroll",
+            },
+        ),
+    )
+    with pytest.raises(ValueError, match="Conflicting UDP bind"):
+        validate_lane_udp_bind_conflicts(lanes)

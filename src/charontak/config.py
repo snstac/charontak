@@ -154,6 +154,77 @@ def validate_cot_url(url: str, *, lane: str, role: str) -> None:
     )
 
 
+def _parse_udp_scheme(scheme: str) -> tuple[bool, bool]:
+    """Mirror pytak.parse_cot_scheme modifiers for udp* URLs."""
+
+    scheme = scheme.lower()
+    write_only = "+wo" in scheme
+    read_only = "+ro" in scheme
+    return write_only, read_only
+
+
+def cot_url_udp_bind_endpoint(url: str) -> tuple[str, int] | None:
+    """Return (host, port) when PyTAK create_udp_client would bind a reader."""
+
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    if "udp" not in scheme:
+        return None
+
+    write_only, _read_only = _parse_udp_scheme(scheme)
+    if write_only:
+        return None
+
+    host = parsed.hostname
+    port = parsed.port
+    if not host or port is None:
+        return None
+    return host, port
+
+
+def lane_udp_bind_endpoints(lane: LaneSpec) -> tuple[tuple[str, tuple[str, int]], ...]:
+    """UDP (host, port) binds this lane would open, tagged by side name."""
+
+    mode = lane_mode(lane)
+    ing = lane.merged.get("ingress_cot_url") or lane.merged.get("INGRESS_COT_URL")
+    egr = lane.merged.get("egress_cot_url") or lane.merged.get("EGRESS_COT_URL")
+    endpoints: list[tuple[str, tuple[str, int]]] = []
+
+    if mode in ("forward", "duplex") and ing:
+        ep = cot_url_udp_bind_endpoint(ing)
+        if ep:
+            endpoints.append(("ingress", ep))
+    if mode in ("reverse", "duplex") and egr:
+        ep = cot_url_udp_bind_endpoint(egr)
+        if ep:
+            endpoints.append(("egress", ep))
+    return tuple(endpoints)
+
+
+def validate_lane_udp_bind_conflicts(lanes: tuple[LaneSpec, ...]) -> None:
+    """Reject configs where multiple lanes bind the same UDP endpoint."""
+
+    seen: dict[tuple[str, int], list[str]] = {}
+    for ln in lanes:
+        for side, endpoint in lane_udp_bind_endpoints(ln):
+            seen.setdefault(endpoint, []).append(f"{ln.name} ({side})")
+
+    conflicts = {endpoint: users for endpoint, users in seen.items() if len(users) > 1}
+    if not conflicts:
+        return
+
+    parts: list[str] = []
+    for (host, port), users in sorted(conflicts.items()):
+        parts.append(f"{host}:{port} ({', '.join(users)})")
+    raise ValueError(
+        "Conflicting UDP bind endpoints across enabled lanes: "
+        + "; ".join(parts)
+        + ". Each lane needs a distinct UDP ingress/egress bind, or disable extra lanes."
+    )
+
+
 def validate_lanes(lanes: tuple[LaneSpec, ...]) -> None:
     for ln in lanes:
         ing = ln.merged.get("ingress_cot_url") or ln.merged.get("INGRESS_COT_URL")
@@ -162,6 +233,7 @@ def validate_lanes(lanes: tuple[LaneSpec, ...]) -> None:
             validate_cot_url(ing, lane=ln.name, role="ingress")
         if egr:
             validate_cot_url(egr, lane=ln.name, role="egress")
+    validate_lane_udp_bind_conflicts(lanes)
 
 
 def lane_mode(lane: LaneSpec) -> str:

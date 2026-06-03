@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import logging
 from typing import Any, List, Tuple
 from urllib.parse import urlparse
@@ -106,10 +107,28 @@ async def run_lane(lane: LaneSpec) -> None:
     ing = section_for_side(lane, cot_url=ing_url, section_suffix="ingress")
     egr = section_for_side(lane, cot_url=egr_url, section_suffix="egress")
 
-    r_ing, w_ing = await pytak.protocol_factory(ing)
+    try:
+        r_ing, w_ing = await pytak.protocol_factory(ing)
+    except OSError as exc:
+        if exc.errno == errno.EADDRINUSE:
+            raise OSError(
+                exc.errno,
+                f"{label} ingress bind failed for {redact_cot_url(ing_url)}: "
+                "address already in use (duplicate lane UDP URL or another process?)",
+            ) from exc
+        raise
     LOG.info("%s ingress connected", label)
 
-    r_egr, w_egr = await pytak.protocol_factory(egr)
+    try:
+        r_egr, w_egr = await pytak.protocol_factory(egr)
+    except OSError as exc:
+        if exc.errno == errno.EADDRINUSE:
+            raise OSError(
+                exc.errno,
+                f"{label} egress bind failed for {redact_cot_url(egr_url)}: "
+                "address already in use (duplicate lane UDP URL or another process?)",
+            ) from exc
+        raise
     LOG.info("%s egress connected", label)
 
     tasks: List[asyncio.Task] = []

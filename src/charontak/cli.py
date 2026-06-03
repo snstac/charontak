@@ -71,6 +71,9 @@ def main() -> None:
 
     try:
         asyncio.run(run_all(lanes))
+    except OSError as exc:
+        LOG.error("%s", exc)
+        sys.exit(1)
     except KeyboardInterrupt:
         LOG.info("Interrupted.")
         sys.exit(130)
