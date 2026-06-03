@@ -2,8 +2,8 @@
 # Makefile (mirrors snstac/adsbcot + pytak packaging targets).
 #
 
-REPO_NAME := charontak
-PKG_NAME := charontak
+REPO_NAME ?= $(shell echo $(wildcard src/*/__init__.py) | awk -F'/' '{print $$2}')
+PKG_NAME := $(REPO_NAME)
 DEB_BUILD_DIR = $(shell ls -d deb_dist/$(REPO_NAME)-* 2>/dev/null | head -n1)
 
 SHELL := /bin/bash

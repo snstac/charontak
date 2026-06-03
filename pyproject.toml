@@ -1,22 +1,18 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "charontak"
-version = "0.1.5"
-description = "PyTAK CoT bridge between TAK transports (lanes / echelons)"
-readme = "README.md"
-requires-python = ">=3.9"
-license = { text = "Apache-2.0" }
 authors = [{ name = "Charontak contributors" }]
-keywords = ["TAK", "CoT", "pytak", "ATAK"]
-classifiers = [
-    "Development Status :: 3 - Alpha",
-    "Programming Language :: Python :: 3",
-]
-dependencies = [
-    "pytak>=7.0.0",
+dynamic = [
+  "version",
+  "description",
+  "readme",
+  "requires-python",
+  "license",
+  "keywords",
+  "classifiers",
 ]
 
 [project.optional-dependencies]
@@ -32,18 +28,13 @@ Repository = "https://github.com/snstac/charontak"
 Issues = "https://github.com/snstac/charontak/issues"
 Documentation = "https://pytak.rtfd.io/"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["charontak*"]
-
-[tool.setuptools.data-files]
-"share/cockpit/charontak" = [
-  "cockpit-charontak/manifest.json",
-  "cockpit-charontak/index.html",
-  "cockpit-charontak/charontak.js",
-]
-"share/charontak" = ["packaging/charontak.ini.example"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+norecursedirs = [
+  ".git",
+  ".venv",
+  "build",
+  "deb_dist",
+  "dist",
+]

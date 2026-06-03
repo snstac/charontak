@@ -1,4 +1,10 @@
-include README.md pyproject.toml
+graft src
+
+global-exclude .DS_Store
+global-exclude __pycache__
+global-exclude *.pyc
+
+include README.md pyproject.toml src/charontak/VERSION
 recursive-include debian *
 recursive-include cockpit-charontak *.json *.html *.js
 recursive-include packaging *
