@@ -77,8 +77,38 @@ def test_validate_cot_url_rejects_tcp_ppt() -> None:
 
 def test_cot_url_udp_bind_endpoint() -> None:
     assert cot_url_udp_bind_endpoint("udp+ro://239.2.3.1:6969") == ("239.2.3.1", 6969)
+    assert cot_url_udp_bind_endpoint("udp+ro://127.0.0.1:18087") == ("127.0.0.1", 18087)
+    assert cot_url_udp_bind_endpoint("udp+ro://:18087") == ("0.0.0.0", 18087)
+    assert cot_url_udp_bind_endpoint("udp+ro://0.0.0.0:18087") == ("0.0.0.0", 18087)
     assert cot_url_udp_bind_endpoint("udp+wo://239.2.3.1:6969") is None
     assert cot_url_udp_bind_endpoint("tls://example.com:8089") is None
+
+
+def test_validate_lane_udp_bind_conflicts_normalizes_any_host() -> None:
+    lanes = (
+        LaneSpec(
+            name="a",
+            raw_section="lane:a",
+            merged={
+                "enabled": "true",
+                "mode": "forward",
+                "ingress_cot_url": "udp+ro://:18087",
+                "egress_cot_url": "udp+wo://239.2.3.1:6969",
+            },
+        ),
+        LaneSpec(
+            name="b",
+            raw_section="lane:b",
+            merged={
+                "enabled": "true",
+                "mode": "forward",
+                "ingress_cot_url": "udp+ro://0.0.0.0:18087",
+                "egress_cot_url": "udp+wo://239.2.3.1:6969",
+            },
+        ),
+    )
+    with pytest.raises(ValueError, match="Conflicting UDP bind"):
+        validate_lane_udp_bind_conflicts(lanes)
 
 
 def test_validate_lane_udp_bind_conflicts() -> None:
@@ -109,19 +139,24 @@ def test_validate_lane_udp_bind_conflicts() -> None:
 
 
 def test_validate_loopback_udp_bind_url() -> None:
-    with pytest.raises(ValueError, match="tcp://127.0.0.1:18087"):
+    with pytest.raises(ValueError, match="udp\\+ro://127.0.0.1:18087"):
         validate_loopback_udp_bind_url(
             "udp://127.0.0.1:18087",
             lane="local-to-mesh",
             role="ingress",
         )
     validate_loopback_udp_bind_url(
+        "udp+ro://127.0.0.1:18087",
+        lane="local-to-mesh",
+        role="ingress",
+    )
+    validate_loopback_udp_bind_url(
+        "udp+ro://:18087",
+        lane="local-to-mesh",
+        role="ingress",
+    )
+    validate_loopback_udp_bind_url(
         "udp+wo://127.0.0.1:18087",
         lane="local-to-mesh",
         role="egress",
-    )
-    validate_loopback_udp_bind_url(
-        "udp://239.2.3.1:6969",
-        lane="mesh",
-        role="ingress",
     )

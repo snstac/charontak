@@ -165,6 +165,14 @@ def _parse_udp_scheme(scheme: str) -> tuple[bool, bool]:
     return write_only, read_only
 
 
+def normalize_udp_bind_host(host: str) -> str:
+    """Normalize UDP bind addresses for conflict checks and preflight."""
+
+    if not host or host in ("0.0.0.0", "*"):
+        return "0.0.0.0"
+    return host.lower()
+
+
 def cot_url_udp_bind_endpoint(url: str) -> tuple[str, int] | None:
     """Return (host, port) when PyTAK create_udp_client would bind a reader."""
 
@@ -179,11 +187,18 @@ def cot_url_udp_bind_endpoint(url: str) -> tuple[str, int] | None:
     if write_only:
         return None
 
-    host = parsed.hostname
     port = parsed.port
-    if not host or port is None:
+    if port is None:
         return None
-    return host, port
+
+    host = parsed.hostname
+    if host is None and parsed.netloc.startswith(":"):
+        # udp+ro://:18087 — listen on all interfaces (PyTAK parse_url host='')
+        host = ""
+    if host is None:
+        return None
+
+    return normalize_udp_bind_host(host), port
 
 
 def lane_udp_bind_endpoints(lane: LaneSpec) -> tuple[tuple[str, tuple[str, int]], ...]:
@@ -228,7 +243,7 @@ def validate_lane_udp_bind_conflicts(lanes: tuple[LaneSpec, ...]) -> None:
 
 
 def validate_loopback_udp_bind_url(url: str, *, lane: str, role: str) -> None:
-    """Reject loopback unicast UDP binds that usually mean tcp:// was intended."""
+    """Reject bidirectional udp:// on loopback; udp+ro listen URLs are valid."""
 
     from urllib.parse import urlparse
 
@@ -237,8 +252,8 @@ def validate_loopback_udp_bind_url(url: str, *, lane: str, role: str) -> None:
     if "udp" not in scheme:
         return
 
-    write_only, _read_only = _parse_udp_scheme(scheme)
-    if write_only:
+    write_only, read_only = _parse_udp_scheme(scheme)
+    if write_only or read_only:
         return
 
     host = (parsed.hostname or "").lower()
@@ -250,9 +265,9 @@ def validate_loopback_udp_bind_url(url: str, *, lane: str, role: str) -> None:
         return
 
     raise ValueError(
-        f"Lane {lane!r} {role} uses {url!r}: PyTAK binds a local UDP socket on loopback. "
-        f"Local CoT feeders on port {port} are usually TCP clients — use "
-        f"tcp://127.0.0.1:{port} as {role}_cot_url instead."
+        f"Lane {lane!r} {role} uses {url!r}: bidirectional udp:// on loopback is "
+        f"ambiguous. To listen for local CoT senders on port {port}, use "
+        f"udp+ro://127.0.0.1:{port} or udp+ro://:{port} as {role}_cot_url."
     )
 
 
@@ -269,14 +284,11 @@ def validate_udp_bind_available(
         if exc.errno != errno.EADDRINUSE:
             raise
         hint = ""
-        if host in ("127.0.0.1", "localhost", "::1"):
-            hint = (
-                f" For a local TCP CoT feeder on port {port}, use "
-                f"tcp://127.0.0.1:{port} instead of udp://."
-            )
+        if host in ("127.0.0.1", "localhost", "::1", "0.0.0.0"):
+            hint = f" Check: ss -ulnp sport = :{port}"
         raise ValueError(
             f"Lane {lane!r} {side} cannot bind UDP {url!r}: address already in use."
-            f"{hint} Check: ss -ulnp sport = :{port}"
+            f"{hint}"
         ) from exc
     finally:
         sock.close()

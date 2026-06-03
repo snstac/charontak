@@ -48,8 +48,9 @@ def _connect_error_hint(url: str, exc: OSError) -> str:
     if exc.errno == errno.ECONNREFUSED and _scheme(url).startswith("tcp"):
         return (
             f" Nothing is listening on {redact_cot_url(url)} — start a local CoT TCP "
-            "listener on that port, fix the port, or disable this lane if feeders "
-            "publish directly to mesh (udp+wo://239.2.3.1:6969)."
+            "listener on that port, use udp+ro://:PORT for UDP senders, fix the port, "
+            "or disable this lane if feeders publish directly to mesh "
+            "(udp+wo://239.2.3.1:6969)."
         )
     if exc.errno == errno.EADDRINUSE:
         return " Address already in use (duplicate lane UDP URL or another process?)."
