@@ -130,6 +130,43 @@ async def test_forward_one_cot_via_mocks(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 @pytest.mark.asyncio
+async def test_protocol_factory_with_retry(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    import errno
+    import logging
+
+    from charontak.bridge import _protocol_factory_with_retry
+    from charontak.config import SectionDict
+
+    caplog.set_level(logging.WARNING, logger="charontak.bridge")
+    attempts = {"n": 0}
+
+    async def fake_pf(cfg):
+        attempts["n"] += 1
+        if attempts["n"] < 2:
+            raise OSError(errno.ECONNREFUSED, "Connect call failed")
+        return BlockReader(), MagicMock()
+
+    monkeypatch.setattr("charontak.bridge.pytak.protocol_factory", fake_pf)
+
+    async def fast_sleep(_delay: float) -> None:
+        return None
+
+    monkeypatch.setattr("charontak.bridge.asyncio.sleep", fast_sleep)
+
+    cfg = SectionDict("t:ingress", {"cot_url": "tcp://127.0.0.1:18087"})
+    await _protocol_factory_with_retry(
+        cfg,
+        label="[lane:t]",
+        side="ingress",
+        url="tcp://127.0.0.1:18087",
+        merged={},
+    )
+
+    assert attempts["n"] == 2
+    assert any("Nothing is listening" in r.message for r in caplog.records)
+
+
+@pytest.mark.asyncio
 async def test_run_all_idle_cancel() -> None:
     t = asyncio.create_task(run_all(()))
     await asyncio.sleep(0.05)

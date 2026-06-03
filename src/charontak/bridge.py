@@ -30,6 +30,77 @@ def _queue_size(merged: dict) -> int:
     return max(mi, mo)
 
 
+def _connect_retry_sleep(merged: dict, attempt: int) -> float:
+    base = float(
+        merged.get("connect_retry_sleep")
+        or merged.get("CONNECT_RETRY_SLEEP")
+        or pytak.DEFAULT_SLEEP
+    )
+    cap = float(
+        merged.get("connect_retry_max_sleep")
+        or merged.get("CONNECT_RETRY_MAX_SLEEP")
+        or pytak.DEFAULT_BACKOFF
+    )
+    return min(base * (2 ** min(attempt, 6)), cap)
+
+
+def _connect_error_hint(url: str, exc: OSError) -> str:
+    if exc.errno == errno.ECONNREFUSED and _scheme(url).startswith("tcp"):
+        return (
+            f" Nothing is listening on {redact_cot_url(url)} — start a local CoT TCP "
+            "listener on that port, fix the port, or disable this lane if feeders "
+            "publish directly to mesh (udp+wo://239.2.3.1:6969)."
+        )
+    if exc.errno == errno.EADDRINUSE:
+        return " Address already in use (duplicate lane UDP URL or another process?)."
+    return ""
+
+
+def _is_retryable_connect_error(exc: OSError) -> bool:
+    return exc.errno in (
+        errno.ECONNREFUSED,
+        errno.ETIMEDOUT,
+        errno.EHOSTUNREACH,
+        errno.ENETUNREACH,
+    )
+
+
+async def _protocol_factory_with_retry(
+    cfg: SectionDict,
+    *,
+    label: str,
+    side: str,
+    url: str,
+    merged: dict,
+) -> tuple[Any, Any]:
+    """Connect with backoff; bind conflicts fail immediately."""
+
+    attempt = 0
+    while True:
+        try:
+            return await pytak.protocol_factory(cfg)
+        except OSError as exc:
+            if exc.errno == errno.EADDRINUSE:
+                raise OSError(
+                    exc.errno,
+                    f"{label} {side} bind failed for {redact_cot_url(url)}:"
+                    f"{_connect_error_hint(url, exc)}",
+                ) from exc
+            if not _is_retryable_connect_error(exc):
+                raise
+            delay = _connect_retry_sleep(merged, attempt)
+            attempt += 1
+            LOG.warning(
+                "%s %s connect failed (%s); retry in %.0fs.%s",
+                label,
+                side,
+                exc,
+                delay,
+                _connect_error_hint(url, exc),
+            )
+            await asyncio.sleep(delay)
+
+
 def _require_urls(lane: LaneSpec) -> Tuple[str, str]:
     m = lane.merged
     ing = m.get("ingress_cot_url") or m.get("INGRESS_COT_URL")
@@ -108,28 +179,17 @@ async def run_lane(lane: LaneSpec) -> None:
     egr = section_for_side(lane, cot_url=egr_url, section_suffix="egress")
 
     r_ing = w_ing = r_egr = w_egr = None
-    try:
-        r_ing, w_ing = await pytak.protocol_factory(ing)
-    except OSError as exc:
-        if exc.errno == errno.EADDRINUSE:
-            raise OSError(
-                exc.errno,
-                f"{label} ingress bind failed for {redact_cot_url(ing_url)}: "
-                "address already in use (duplicate lane UDP URL or another process?)",
-            ) from exc
-        raise
+    r_ing, w_ing = await _protocol_factory_with_retry(
+        ing, label=label, side="ingress", url=ing_url, merged=merged
+    )
     LOG.info("%s ingress connected", label)
 
     try:
-        r_egr, w_egr = await pytak.protocol_factory(egr)
-    except OSError as exc:
+        r_egr, w_egr = await _protocol_factory_with_retry(
+            egr, label=label, side="egress", url=egr_url, merged=merged
+        )
+    except OSError:
         await _close_udp_writer(w_ing)
-        if exc.errno == errno.EADDRINUSE:
-            raise OSError(
-                exc.errno,
-                f"{label} egress bind failed for {redact_cot_url(egr_url)}: "
-                "address already in use (duplicate lane UDP URL or another process?)",
-            ) from exc
         raise
     LOG.info("%s egress connected", label)
 
