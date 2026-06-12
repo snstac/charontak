@@ -1,2 +1,1 @@
 debian/charontak.service lib/systemd/system/
-cockpit-charontak/* usr/share/cockpit/charontak/
