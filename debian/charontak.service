@@ -9,6 +9,12 @@ Description=Charontak PyTAK CoT echelon bridge
 Documentation=https://github.com/snstac/charontak
 Wants=network-online.target
 After=network-online.target
+# Start rate limiting belongs to the UNIT, not the service. Placed under
+# [Service] systemd logs "Unknown key ... ignoring" on every boot AND silently
+# applies no rate limit at all — a crash-looping charontak would restart
+# forever every 3s.
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -20,8 +26,6 @@ ExecStart=/usr/bin/charontak
 Restart=on-failure
 RestartPreventExitStatus=78
 RestartSec=3
-StartLimitIntervalSec=60
-StartLimitBurst=5
 SyslogIdentifier=charontak
 
 [Install]
