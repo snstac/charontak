@@ -566,3 +566,42 @@ class TestLaneIntegration:
 
         asyncio.run(drive())
         assert rec.counters["recorded"] == 1
+
+
+class TestConfigKeyCase:
+    """ConfigParser lowercases option names.
+
+    charontak hands the recorder a lane's merged mapping, whose keys came from
+    an ini file and are therefore lower-case. Reading only the upper-case form
+    meant every setting an operator wrote was silently ignored and the default
+    used instead -- the recorder reported a directory that was not the one
+    configured, and nothing warned. Found on a real box, not in these tests,
+    which is why this class exists.
+    """
+
+    def test_lowercase_keys_are_honoured(self, tmp_path):
+        want = str(tmp_path / "configured")
+        r = TrackRecorder({"record_dir": want, "record_flush_seconds": "20"})
+        assert r.config.directory == want
+        assert r.config.flush_seconds == 20.0
+
+    def test_uppercase_keys_still_work(self, tmp_path):
+        want = str(tmp_path / "configured")
+        r = TrackRecorder({"RECORD_DIR": want, "RECORD_FLUSH_SECONDS": "20"})
+        assert r.config.directory == want
+        assert r.config.flush_seconds == 20.0
+
+    def test_mixed_case_works(self, tmp_path):
+        r = TrackRecorder({"Record_Max_Bytes": "12345"})
+        assert r.config.max_bytes == 12345
+
+    def test_lowercase_record_all(self, tmp_path):
+        r = TrackRecorder({"record_dir": str(tmp_path), "record_all": "true"})
+        assert r.config.record_all is True
+
+    def test_lowercase_encrypt_key_is_seen(self, tmp_path):
+        """Otherwise a lane asking for encryption would write plaintext."""
+        key = tmp_path / "k"
+        key.write_bytes(os.urandom(32))
+        r = TrackRecorder({"record_dir": str(tmp_path / "t"), "record_encrypt_key": str(key)})
+        assert r.stats()["encrypted"] is True

@@ -169,7 +169,12 @@ class RecorderConfig:
     """Recorder settings, read from a charontak config section."""
 
     def __init__(self, cfg: Optional[Dict[str, Any]] = None) -> None:
-        cfg = cfg or {}
+        # ConfigParser lowercases option names, so a lane's merged mapping holds
+        # `record_dir`, not `RECORD_DIR`. Looking up only the upper-case form
+        # meant every recorder setting an operator wrote was silently ignored
+        # and the defaults used instead -- found by reading the startup log on a
+        # real box, where the configured directory was not the one it reported.
+        cfg = {str(k).upper(): v for k, v in (cfg or {}).items()}
 
         def _get(key: str, default: Any, cast: Any) -> Any:
             value = cfg.get(key)
