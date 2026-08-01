@@ -7,12 +7,19 @@ from __future__ import annotations
 import asyncio
 import errno
 import logging
-from typing import Any, List, Tuple
+from typing import Any, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import pytak
 
-from charontak.config import LaneSpec, SectionDict, lane_mode, section_for_side
+from charontak.config import (
+    LaneSpec,
+    SectionDict,
+    lane_mode,
+    record_mode,
+    section_for_side,
+)
+from charontak.recorder import TrackRecorder
 from charontak.log_urls import redact_cot_url
 
 LOG = logging.getLogger("charontak.bridge")
@@ -161,22 +168,73 @@ async def _discard_reader_queue(cfg: SectionDict, reader: Any, label: str) -> No
     await asyncio.gather(rx.run(), sink())
 
 
+async def _record_pump(
+    recorder: "TrackRecorder",
+    src: asyncio.Queue,
+    dst: Optional[asyncio.Queue],
+    label: str,
+) -> None:
+    """Record everything passing through, and forward it unless recording only.
+
+    The recorder is deliberately downstream of nothing: offer() never raises
+    and never blocks on I/O, so a recording fault cannot stall or break the
+    lane it is observing. Forwarding happens whether or not the record
+    succeeded.
+    """
+    while True:
+        data = await src.get()
+        try:
+            recorder.offer(data)
+        except Exception as exc:  # noqa: BLE001
+            # TrackRecorder.offer() already swallows its own faults, so this is
+            # defence in depth against a recorder object that does not. Moving
+            # CoT is the job; an event must never be lost because recording it
+            # went wrong.
+            LOG.warning("%s recorder raised, continuing: %s", label, exc)
+        if dst is not None:
+            await dst.put(data)
+
+
+async def _record_flusher(recorder: "TrackRecorder", interval: float) -> None:
+    """Flush on a timer so an idle lane still commits what it buffered.
+
+    Without this, the last events before a quiet spell would sit in RAM
+    indefinitely and be lost on restart.
+    """
+    while True:
+        await asyncio.sleep(max(interval, 1.0))
+        recorder.flush()
+
+
 async def run_lane(lane: LaneSpec) -> None:
     """Run one lane until cancelled or failure."""
 
     ing_url, egr_url = _require_urls(lane)
     mode = lane_mode(lane)
+    rec_mode = record_mode(lane)
     merged = dict(lane.merged)
     qsz = _queue_size(merged)
     label = _lane_label(lane)
 
-    LOG.info(
-        "%s setup %s: %s -> %s",
-        label,
-        mode,
-        redact_cot_url(ing_url),
-        redact_cot_url(egr_url),
-    )
+    if rec_mode == "only":
+        # EMCON: record locally and emit nothing. Egress is never connected,
+        # because opening a socket to a TAK server already announces that this
+        # box exists -- which is the thing "only" is for avoiding.
+        LOG.info(
+            "%s setup %s: %s -> RECORD ONLY (no egress)",
+            label,
+            mode,
+            redact_cot_url(ing_url),
+        )
+    else:
+        LOG.info(
+            "%s setup %s: %s -> %s%s",
+            label,
+            mode,
+            redact_cot_url(ing_url),
+            redact_cot_url(egr_url),
+            " (+record)" if rec_mode == "on" else "",
+        )
 
     ing = section_for_side(lane, cot_url=ing_url, section_suffix="ingress")
     egr = section_for_side(lane, cot_url=egr_url, section_suffix="egress")
@@ -187,21 +245,55 @@ async def run_lane(lane: LaneSpec) -> None:
     )
     LOG.info("%s ingress connected", label)
 
-    try:
-        r_egr, w_egr = await _protocol_factory_with_retry(
-            egr, label=label, side="egress", url=egr_url, merged=merged
+    if rec_mode != "only":
+        try:
+            r_egr, w_egr = await _protocol_factory_with_retry(
+                egr, label=label, side="egress", url=egr_url, merged=merged
+            )
+        except OSError:
+            await _close_udp_writer(w_ing)
+            raise
+        LOG.info("%s egress connected", label)
+
+    recorder: Optional[TrackRecorder] = None
+    if rec_mode in ("on", "only"):
+        recorder = TrackRecorder(merged)
+        LOG.info(
+            "%s recording to %s (budget %s MiB)",
+            label,
+            recorder.config.directory,
+            recorder.config.max_bytes // 1024**2,
         )
-    except OSError:
-        await _close_udp_writer(w_ing)
-        raise
-    LOG.info("%s egress connected", label)
 
     tasks: List[asyncio.Task] = []
 
     try:
-        if mode == "forward":
+        if rec_mode == "only":
+            # Ingress -> recorder, full stop. No egress socket exists.
+            relay = asyncio.Queue(qsz)
+            tasks.append(asyncio.create_task(pytak.RXWorker(relay, ing, r_ing).run(), name=f"{lane.name}-rx-ingress"))
+            tasks.append(asyncio.create_task(_record_pump(recorder, relay, None, label), name=f"{lane.name}-record"))
+            tasks.append(
+                asyncio.create_task(
+                    _record_flusher(recorder, recorder.config.flush_seconds),
+                    name=f"{lane.name}-record-flush",
+                )
+            )
+
+        elif mode == "forward":
             relay: asyncio.Queue = asyncio.Queue(qsz)
             tasks.append(asyncio.create_task(pytak.RXWorker(relay, ing, r_ing).run(), name=f"{lane.name}-rx-ingress"))
+            if recorder is not None:
+                # Tee between RX and TX: record, then forward unchanged.
+                egress_q: asyncio.Queue = asyncio.Queue(qsz)
+                tasks.append(asyncio.create_task(_record_pump(recorder, relay, egress_q, label), name=f"{lane.name}-record"))
+                tasks.append(
+                    asyncio.create_task(
+                        _record_flusher(recorder, recorder.config.flush_seconds),
+                        name=f"{lane.name}-record-flush",
+                    )
+                )
+                relay = egress_q
             tasks.append(asyncio.create_task(pytak.TXWorker(relay, egr, w_egr).run(), name=f"{lane.name}-tx-egress"))
             tasks.append(
                 asyncio.create_task(_discard_reader_queue(egr, r_egr, f"{lane.name}-drain-egress"), name=f"{lane.name}-drain-egress")
@@ -241,11 +333,15 @@ async def run_lane(lane: LaneSpec) -> None:
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        if recorder is not None:
+            recorder.close()  # commit the buffer rather than losing it
         raise
     except Exception:
         for t in tasks:
             t.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        if recorder is not None:
+            recorder.close()
         raise
 
 

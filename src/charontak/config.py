@@ -361,6 +361,26 @@ def validate_lanes(lanes: tuple[LaneSpec, ...]) -> None:
     validate_lane_udp_binds(lanes)
 
 
+def record_mode(lane: LaneSpec) -> str:
+    """Return "off", "on" or "only" for this lane's recording setting.
+
+    "only" is the EMCON case: record locally and emit NOTHING. It is handled by
+    never connecting egress at all, rather than by connecting and declining to
+    write -- a lane that opens a socket to a TAK server has already announced
+    the box exists, which is the thing "only" is for avoiding.
+    """
+    raw = str(lane.merged.get("record") or "off").strip().lower()
+    if raw in ("1", "true", "yes", "on"):
+        return "on"
+    if raw in ("0", "false", "no", "off", ""):
+        return "off"
+    if raw == "only":
+        return "only"
+    raise ValueError(
+        f"Lane {lane.name!r}: invalid record {raw!r} (use off, on, or only)"
+    )
+
+
 def lane_mode(lane: LaneSpec) -> str:
     raw = (lane.merged.get("mode") or "forward").strip().lower()
     if raw not in ("forward", "reverse", "duplex"):
