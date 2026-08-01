@@ -1,3 +1,5 @@
+# Copyright Sensors & Signals LLC https://www.snstac.com/
+# SPDX-License-Identifier: Apache-2.0
 """Charontak: PyTAK CoT bridge between transports."""
 
 from pathlib import Path

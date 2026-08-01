@@ -1,3 +1,5 @@
+# Copyright Sensors & Signals LLC https://www.snstac.com/
+# SPDX-License-Identifier: Apache-2.0
 """Helpers for logging COT URLs without leaking secrets."""
 
 from __future__ import annotations
