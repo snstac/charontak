@@ -1,3 +1,5 @@
+# Copyright 2026 Sensors & Signals LLC https://www.snstac.com/
+# SPDX-License-Identifier: Apache-2.0
 """Async bridge: PyTAK RX/TX workers per lane."""
 
 from __future__ import annotations
