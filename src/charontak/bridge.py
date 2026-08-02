@@ -295,9 +295,16 @@ async def run_lane(lane: LaneSpec) -> None:
                 )
                 relay = egress_q
             tasks.append(asyncio.create_task(pytak.TXWorker(relay, egr, w_egr).run(), name=f"{lane.name}-tx-egress"))
-            tasks.append(
-                asyncio.create_task(_discard_reader_queue(egr, r_egr, f"{lane.name}-drain-egress"), name=f"{lane.name}-drain-egress")
-            )
+            # A write-only transport (notably udp+wo://) has no reader.  Do not
+            # create an RXWorker for None: RXWorker.run_once() returns
+            # immediately in that case, so its run loop spins at 100% CPU.
+            if r_egr is not None:
+                tasks.append(
+                    asyncio.create_task(
+                        _discard_reader_queue(egr, r_egr, f"{lane.name}-drain-egress"),
+                        name=f"{lane.name}-drain-egress",
+                    )
+                )
             if _is_udp_family(ing_url):
                 await _close_udp_writer(w_ing)
 
@@ -305,9 +312,13 @@ async def run_lane(lane: LaneSpec) -> None:
             relay = asyncio.Queue(qsz)
             tasks.append(asyncio.create_task(pytak.RXWorker(relay, egr, r_egr).run(), name=f"{lane.name}-rx-egress"))
             tasks.append(asyncio.create_task(pytak.TXWorker(relay, ing, w_ing).run(), name=f"{lane.name}-tx-ingress"))
-            tasks.append(
-                asyncio.create_task(_discard_reader_queue(ing, r_ing, f"{lane.name}-drain-ingress"), name=f"{lane.name}-drain-ingress")
-            )
+            if r_ing is not None:
+                tasks.append(
+                    asyncio.create_task(
+                        _discard_reader_queue(ing, r_ing, f"{lane.name}-drain-ingress"),
+                        name=f"{lane.name}-drain-ingress",
+                    )
+                )
             if _is_udp_family(egr_url):
                 await _close_udp_writer(w_egr)
 

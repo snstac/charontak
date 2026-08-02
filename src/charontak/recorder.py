@@ -243,10 +243,20 @@ class TrackRecorder:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
             with open(path, "rb") as handle:
-                key = handle.read().strip()
-            # Accept raw 32-byte keys or hex.
-            if len(key) == 64:
-                key = bytes.fromhex(key.decode("ascii"))
+                raw_key = handle.read()
+
+            # A raw AES key is arbitrary binary: 0x09, 0x0a, 0x20 and 0x0d are
+            # all valid bytes. Stripping before checking its length randomly
+            # shortened otherwise valid keys whenever one happened to begin or
+            # end with ASCII whitespace. Only trim the textual representation
+            # when the file is not already an exact AES key length.
+            if len(raw_key) in (16, 24, 32):
+                key = raw_key
+            else:
+                key = raw_key.strip()
+                # Accept a human-manageable hex key, optionally newline-ended.
+                if len(key) == 64:
+                    key = bytes.fromhex(key.decode("ascii"))
             if len(key) not in (16, 24, 32):
                 raise ValueError(f"key must be 16/24/32 bytes, got {len(key)}")
             return AESGCM(key)

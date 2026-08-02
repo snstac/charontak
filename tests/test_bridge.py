@@ -130,6 +130,53 @@ async def test_forward_one_cot_via_mocks(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 @pytest.mark.asyncio
+async def test_forward_write_only_egress_does_not_start_reader(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A udp+wo egress has no reader; trying to drain it busy-loops PyTAK."""
+
+    discarded: list[object] = []
+
+    class EgWriter:
+        async def send(self, data: bytes) -> None:  # noqa: ARG002
+            return None
+
+    async def fake_pf(cfg):
+        url = str(cfg.get("COT_URL") or cfg.get("cot_url") or "")
+        if url.startswith("udp+ro://"):
+            return BlockReader(), MagicMock()
+        if url.startswith("udp+wo://"):
+            return None, EgWriter()
+        raise AssertionError(url)
+
+    async def fake_discard(cfg, reader, label):  # noqa: ARG001
+        discarded.append(reader)
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr("charontak.bridge.pytak.protocol_factory", fake_pf)
+    monkeypatch.setattr("charontak.bridge._discard_reader_queue", fake_discard)
+
+    lane = LaneSpec(
+        name="mesh",
+        raw_section="lane:mesh",
+        merged={
+            "enabled": "true",
+            "mode": "forward",
+            "ingress_cot_url": "udp+ro://127.0.0.1:28087",
+            "egress_cot_url": "udp+wo://239.2.3.1:6969",
+        },
+    )
+
+    task = asyncio.create_task(run_lane(lane))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert discarded == []
+
+
+@pytest.mark.asyncio
 async def test_protocol_factory_with_retry(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
     import errno
     import logging

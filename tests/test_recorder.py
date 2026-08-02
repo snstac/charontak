@@ -382,6 +382,27 @@ class TestEncryption:
         assert path.endswith(".enc")
         assert b"UAL225" not in open(path, "rb").read()
 
+    def test_raw_key_bytes_that_look_like_whitespace_are_not_stripped(
+        self, tmp_path
+    ):
+        """AES key material is binary; leading/trailing whitespace is data."""
+        key = tmp_path / "key"
+        key.write_bytes(b"\n" + (b"x" * 30) + b" ")
+        r = TrackRecorder(
+            {"RECORD_DIR": str(tmp_path / "t"), "RECORD_ENCRYPT_KEY": str(key)},
+            now=1000.0,
+        )
+        assert r.stats()["encrypted"] is True
+
+    def test_newline_terminated_hex_key_is_accepted(self, tmp_path):
+        key = tmp_path / "key"
+        key.write_text((b"x" * 32).hex() + "\n", encoding="ascii")
+        r = TrackRecorder(
+            {"RECORD_DIR": str(tmp_path / "t"), "RECORD_ENCRYPT_KEY": str(key)},
+            now=1000.0,
+        )
+        assert r.stats()["encrypted"] is True
+
     def test_bad_key_halts_rather_than_writing_plaintext(self, tmp_path):
         """Falling back would produce exactly the file the operator believes
         is encrypted."""

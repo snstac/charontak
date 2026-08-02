@@ -52,7 +52,6 @@ deb_custom: deb_dist
 	cp debian/$(REPO_NAME).default $(DEB_BUILD_DIR)/debian/$(REPO_NAME).default
 	cp debian/$(REPO_NAME).postinst $(DEB_BUILD_DIR)/debian/$(REPO_NAME).postinst
 	cp debian/$(REPO_NAME).service $(DEB_BUILD_DIR)/debian/$(REPO_NAME).service
-	cp debian/$(REPO_NAME).install $(DEB_BUILD_DIR)/debian/$(REPO_NAME).install
 	cat debian/rules_fragment >> $(DEB_BUILD_DIR)/debian/rules
 
 bdist_deb: deb_custom
