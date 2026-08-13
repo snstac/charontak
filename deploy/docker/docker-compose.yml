@@ -1,25 +1,25 @@
 services:
-  charontak:
+  cotbridge:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
-    image: ${CHARONTAK_IMAGE:-charontak:local}
+    image: ${COTBRIDGE_IMAGE:-cotbridge:local}
     restart: unless-stopped
     ports:
       - "${COCKPIT_PORT:-9090}:9090"
     volumes:
-      - ./charontak.override.ini:/etc/charontak.ini:ro
+      - ./cotbridge.override.ini:/etc/cotbridge.ini:ro
     profiles:
       - bridge
 
-  charontak-host:
+  cotbridge-host:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile
-    image: ${CHARONTAK_IMAGE:-charontak:local}
+    image: ${COTBRIDGE_IMAGE:-cotbridge:local}
     restart: unless-stopped
     network_mode: host
     volumes:
-      - ./charontak.override.ini:/etc/charontak.ini:ro
+      - ./cotbridge.override.ini:/etc/cotbridge.ini:ro
     profiles:
       - hostnet

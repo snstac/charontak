@@ -1,0 +1,106 @@
+---
+
+- ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_pkg_mgr == "apt"
+
+- name: Debian/Ubuntu cockpit + Python
+  ansible.builtin.apt:
+    name:
+      - cockpit-ws
+      - cockpit-bridge
+      - python3
+      - python3-pip
+      - ca-certificates
+      - openssl
+    state: present
+  when: ansible_pkg_mgr == "apt"
+
+- name: Fedora/RHEL cockpit (tune for AryaOS)
+  ansible.builtin.package:
+    name:
+      - cockpit-system
+      - cockpit-ws
+      - cockpit-bridge
+      - python3
+      - python3-pip
+    state: present
+  when:
+    - ansible_pkg_mgr == "dnf"
+    - cotbridge_cockpit_rpm_optional | bool
+  ignore_errors: true
+
+- ansible.builtin.file:
+    path: "{{ cotbridge_install_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Clone COTBridge
+  ansible.builtin.git:
+    repo: "{{ cotbridge_git_repo }}"
+    version: "{{ cotbridge_git_version }}"
+    dest: "{{ cotbridge_repo_dir }}"
+    force: true
+  when: not cotbridge_sync_from_controller | bool
+
+- name: Sync COTBridge from controller
+  ansible.posix.synchronize:
+    src: "{{ cotbridge_sync_src | trim('/') }}/"
+    dest: "{{ cotbridge_repo_dir }}/"
+    delete: "{{ cotbridge_sync_delete | bool }}"
+    rsync_opts:
+      - "--exclude=.git/"
+      - "--exclude=.venv/"
+      - "--exclude=.cursor/"
+  delegate_to: localhost
+  when: cotbridge_sync_from_controller | bool
+
+- name: Pip install COTBridge
+  ansible.builtin.pip:
+    name: "{{ cotbridge_repo_dir }}"
+    editable: "{{ cotbridge_pip_editable }}"
+    executable: pip3
+    extra_args: "{{ '--break-system-packages' if cotbridge_pip_break_system_packages else '' }}"
+
+- ansible.builtin.file:
+    path: /usr/share/cockpit/cotbridge
+    state: directory
+    mode: "0755"
+
+- name: cockpit-cotbridge static bundle
+  ansible.builtin.copy:
+    src: "{{ cotbridge_repo_dir }}/cockpit-cotbridge/"
+    dest: /usr/share/cockpit/cotbridge/
+    remote_src: true
+    mode: "0644"
+
+- name: Deploy /etc/cotbridge.ini
+  ansible.builtin.template:
+    src: cotbridge.ini.j2
+    dest: /etc/cotbridge.ini
+    mode: "0644"
+  notify: Restart COTBridge
+
+- name: Install systemd unit file
+  ansible.builtin.copy:
+    remote_src: true
+    src: "{{ cotbridge_repo_dir }}/systemd/cotbridge.service"
+    dest: /etc/systemd/system/cotbridge.service
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart COTBridge
+
+- name: Enable cockpit.socket
+  ansible.builtin.systemd_service:
+    name: cockpit.socket
+    enabled: true
+    state: started
+
+- name: Enable COTBridge
+  ansible.builtin.systemd_service:
+    name: cotbridge.service
+    enabled: true
+    daemon_reload: true
+    state: started

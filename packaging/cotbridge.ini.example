@@ -1,0 +1,5 @@
+#
+# Packaged default (idle until [lane:*] enabled). Copied to /etc/cotbridge.ini on first install only.
+
+[cotbridge]
+DEBUG = false

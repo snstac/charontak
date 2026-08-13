@@ -1,4 +1,4 @@
-# Charontak + Cockpit admin UI (supervisord under tini).
+# COTBridge + Cockpit admin UI (supervisord under tini).
 # Build from repository root:
 #   docker build -f deploy/docker/Dockerfile .
 
@@ -27,13 +27,13 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 
 WORKDIR /src
 COPY pyproject.toml README.md /src/
-COPY charontak /src/charontak/
+COPY cotbridge /src/cotbridge/
 
 RUN pip3 install --no-cache-dir .
 
-COPY cockpit-charontak/manifest.json cockpit-charontak/index.html cockpit-charontak/charontak.js \
-  /usr/share/cockpit/charontak/
-COPY deploy/docker/charontak.container.ini /etc/charontak.ini
+COPY cockpit-cotbridge/manifest.json cockpit-cotbridge/index.html cockpit-cotbridge/cotbridge.js \
+  /usr/share/cockpit/cotbridge/
+COPY deploy/docker/cotbridge.container.ini /etc/cotbridge.ini
 
 COPY deploy/docker/supervisord.conf /etc/supervisor/supervisord.conf
 COPY deploy/docker/docker-entrypoint.sh /docker-entrypoint.sh

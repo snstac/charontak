@@ -1,0 +1,32 @@
+#
+# COTBridge systemd unit (Debian/Fedora packages install to /lib/systemd/system).
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+[Unit]
+Description=COTBridge PyTAK CoT echelon bridge
+Documentation=https://github.com/snstac/cotbridge
+Wants=network-online.target
+After=network-online.target
+# Start rate limiting belongs to the UNIT, not the service. Placed under
+# [Service] systemd logs "Unknown key ... ignoring" on every boot AND silently
+# applies no rate limit at all — a crash-looping cotbridge would restart
+# forever every 3s.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=cotbridge
+Group=cotbridge
+EnvironmentFile=-/etc/default/cotbridge
+RuntimeDirectory=cotbridge
+ExecStart=/usr/bin/cotbridge
+Restart=on-failure
+RestartPreventExitStatus=78
+RestartSec=3
+SyslogIdentifier=cotbridge
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,79 @@
+---
+
+- name: Refresh apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_pkg_mgr == "apt"
+
+- name: Install Docker + Compose + git (apt)
+  ansible.builtin.apt:
+    name:
+      - docker.io
+      - docker-compose-plugin
+      - git
+    state: present
+  when: ansible_pkg_mgr == "apt"
+
+- name: Enable Docker service (Debian/Ubuntu)
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: true
+    state: started
+
+- ansible.builtin.file:
+    path: "{{ cotbridge_install_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Clone COTBridge (git)
+  ansible.builtin.git:
+    repo: "{{ cotbridge_git_repo }}"
+    version: "{{ cotbridge_git_version }}"
+    dest: "{{ cotbridge_repo_dir }}"
+    force: true
+  when: not cotbridge_sync_from_controller | bool
+
+- name: Rsync workspace from Ansible controller into target
+  ansible.posix.synchronize:
+    src: "{{ cotbridge_sync_src | trim('/') }}/"
+    dest: "{{ cotbridge_repo_dir }}/"
+    delete: "{{ cotbridge_sync_delete | bool }}"
+    rsync_opts:
+      - "--exclude=.git/"
+      - "--exclude=.venv/"
+      - "--exclude=.cursor/"
+  delegate_to: localhost
+  when: cotbridge_sync_from_controller | bool
+
+- name: Render Compose bind-mounted INI
+  ansible.builtin.template:
+    src: cotbridge.ini.j2
+    dest: "{{ cotbridge_repo_dir }}/deploy/docker/cotbridge.override.ini"
+    mode: "0644"
+  notify: Restart COTBridge docker stack
+
+- name: Compose .env
+  ansible.builtin.copy:
+    dest: "{{ cotbridge_repo_dir }}/deploy/docker/.env"
+    mode: "0600"
+    content: |
+      COTBRIDGE_IMAGE={{ cotbridge_docker_image_override | default('cotbridge:ansible', true) }}
+      COCKPIT_PORT={{ cotbridge_cockpit_port }}
+
+- name: Install systemd unit for docker compose
+  ansible.builtin.template:
+    src: cotbridge-docker.service.j2
+    dest: /etc/systemd/system/cotbridge-docker.service
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart COTBridge docker stack
+
+- name: Enable docker stack unit
+  ansible.builtin.systemd_service:
+    name: cotbridge-docker
+    enabled: true
+    daemon_reload: true
+    state: started
+

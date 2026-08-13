@@ -4,7 +4,7 @@ global-exclude .DS_Store
 global-exclude __pycache__
 global-exclude *.pyc
 
-include README.md pyproject.toml src/charontak/VERSION
+include README.md pyproject.toml src/cotbridge/VERSION
 recursive-include debian *
 recursive-include packaging *
 recursive-include examples *.ini *.default

@@ -3,8 +3,8 @@ requires = ["setuptools>=42"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "charontak"
-authors = [{ name = "Charontak contributors" }]
+name = "cotbridge"
+authors = [{ name = "COTBridge contributors" }]
 dynamic = [
   "version",
   "description",
@@ -21,12 +21,12 @@ with_takproto = ["pytak[with_takproto]"]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.23", "cryptography>=39.0.0"]
 
 [project.scripts]
-charontak = "charontak.cli:main"
+cotbridge = "cotbridge.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/snstac/charontak"
-Repository = "https://github.com/snstac/charontak"
-Issues = "https://github.com/snstac/charontak/issues"
+Homepage = "https://github.com/snstac/cotbridge"
+Repository = "https://github.com/snstac/cotbridge"
+Issues = "https://github.com/snstac/cotbridge/issues"
 Documentation = "https://pytak.rtfd.io/"
 
 [tool.pytest.ini_options]

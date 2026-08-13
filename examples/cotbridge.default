@@ -1,0 +1,3 @@
+# systemd EnvironmentFile for cotbridge.service (optional).
+# Install as /etc/default/cotbridge
+COTBRIDGE_CONFIG=/etc/cotbridge.ini

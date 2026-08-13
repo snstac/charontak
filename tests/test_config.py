@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from charontak.config import (
+from cotbridge.config import (
     LaneSpec,
     build_lane_specs,
     cot_url_udp_bind_endpoint,
@@ -42,7 +42,7 @@ def test_section_for_side_cot(example_ini: Path) -> None:
     assert s2.get("cot_url") == "udp+ro://0.0.0.0:1234"
 
 
-from charontak.config import lane_mode
+from cotbridge.config import lane_mode
 
 
 def test_lane_mode_duplex() -> None:
@@ -61,16 +61,16 @@ def test_lane_mode_duplex() -> None:
 
 @pytest.fixture()
 def example_ini(tmp_path: Path) -> Path:
-    src = Path(__file__).resolve().parent.parent / "examples" / "charontak.ini"
+    src = Path(__file__).resolve().parent.parent / "examples" / "cotbridge.ini"
     assert src.is_file()
-    dest = tmp_path / "charontak.ini"
+    dest = tmp_path / "cotbridge.ini"
     dest.write_text(src.read_text(), encoding="utf-8")
     return dest
 
 
 def test_default_config_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("CHARONTAK_CONFIG", raising=False)
-    assert default_config_path() == Path("/etc/charontak.ini")
+    monkeypatch.delenv("COTBRIDGE_CONFIG", raising=False)
+    assert default_config_path() == Path("/etc/cotbridge.ini")
 
 
 def test_validate_cot_url_rejects_tcp_ppt() -> None:

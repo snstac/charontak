@@ -1,7 +1,0 @@
----
-
-- ansible.builtin.import_tasks: docker.yml
-  when: charontak_deploy == "docker"
-
-- ansible.builtin.import_tasks: native.yml
-  when: charontak_deploy != "docker"
