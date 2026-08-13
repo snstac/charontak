@@ -1,3 +1,0 @@
-# systemd EnvironmentFile for charontak.service (optional).
-# Install as /etc/default/charontak
-CHARONTAK_CONFIG=/etc/charontak.ini

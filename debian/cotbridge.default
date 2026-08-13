@@ -1,0 +1,11 @@
+#
+# /etc/default/cotbridge — environment for systemd cotbridge.service
+#
+
+COTBRIDGE_CONFIG=/etc/cotbridge.ini
+
+# Used by debian/cotbridge.postinst when creating the runtime user (adsbcot-style).
+SERVER_USER=cotbridge
+SERVER_GROUP=cotbridge
+SERVER_HOME=/run/cotbridge
+SERVER_NAME="COTBridge PyTAK bridge system user"

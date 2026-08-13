@@ -5,7 +5,7 @@
 Weighted towards the ways this hurts someone rather than the happy path. It
 runs unattended for weeks on a flash card in a box that has documented brownout
 problems, so the tests that matter are: does it refuse to fill the disk, does
-it bound what it keeps, does it survive a fault without taking charontak down,
+it bound what it keeps, does it survive a fault without taking cotbridge down,
 and -- most of all -- does it say so when it stops.
 """
 
@@ -14,7 +14,7 @@ import os
 
 import pytest
 
-from charontak.recorder import TrackRecorder, parse_cot_event
+from cotbridge.recorder import TrackRecorder, parse_cot_event
 
 EVENT = (
     '<?xml version="1.0"?>'
@@ -22,7 +22,7 @@ EVENT = (
     'time="2026-08-01T09:00:00Z" start="2026-08-01T09:00:00Z" '
     'stale="2026-08-01T09:05:00Z">'
     '<point lat="37.6" lon="-122.4" hae="3000.0" ce="10.0" le="20.0"/>'
-    "<detail><contact callsign=\"UAL225\"/><__adsb alt_baro=\"9800\"/></detail>"
+    '<detail><contact callsign="UAL225"/><__adsb alt_baro="9800"/></detail>'
     "</event>"
 )
 
@@ -38,9 +38,7 @@ def evt(uid="ICAO-A4C3B2", lat=37.6, lon=-122.4, hae=3000.0, detail="UAL225"):
 
 def _archive_of(rec):
     return next(
-        os.path.join(dp, f)
-        for dp, _, fs in os.walk(rec.config.directory)
-        for f in fs
+        os.path.join(dp, f) for dp, _, fs in os.walk(rec.config.directory) for f in fs
     )
 
 
@@ -78,7 +76,6 @@ def _decode(blob: bytes, path: str, allow_partial: bool = False) -> bytes:
     return out
 
 
-
 @pytest.fixture
 def rec(tmp_path):
     return TrackRecorder({"RECORD_DIR": str(tmp_path / "tracks")}, now=1000.0)
@@ -107,7 +104,10 @@ class TestParse:
 
     def test_rejects_events_with_no_uid(self):
         """A row with no track to attribute it to is not a contact."""
-        assert parse_cot_event(b'<event type="a-f"><point lat="1" lon="2"/></event>') is None
+        assert (
+            parse_cot_event(b'<event type="a-f"><point lat="1" lon="2"/></event>')
+            is None
+        )
 
     def test_non_numeric_coords_become_none_not_zero(self):
         """0,0 is a real place in the Gulf of Guinea."""
@@ -253,7 +253,9 @@ class TestDoesNotFillTheDisk:
 
         r = TrackRecorder({"RECORD_DIR": str(tmp_path / "t")}, now=1000.0)
         monkeypatch.setattr(
-            sh, "disk_usage", lambda p: os.statvfs_result if False else _Usage(free=1024)
+            sh,
+            "disk_usage",
+            lambda p: os.statvfs_result if False else _Usage(free=1024),
         )
         r.offer(evt(), now=1000.0)
         r.flush(now=1000.0, force=True)
@@ -321,7 +323,10 @@ class TestRetention:
         r = TrackRecorder({"RECORD_DIR": str(tmp_path / "t")}, now=1000.0)
         calls = []
         original = r._prune_over_budget
-        r._prune_over_budget = lambda *a, **k: (calls.append("prune"), original(*a, **k))[1]
+        r._prune_over_budget = lambda *a, **k: (
+            calls.append("prune"),
+            original(*a, **k),
+        )[1]
         r.offer(evt(), now=1000.0)
         r.flush(now=1000.0, force=True)
         assert calls, "retention must run before the write, not after"
@@ -331,7 +336,7 @@ class TestSurvivability:
     def test_offer_never_raises(self, rec, monkeypatch):
         """Moving CoT is the job; recording it is not."""
         monkeypatch.setattr(
-            "charontak.recorder.parse_cot_event",
+            "cotbridge.recorder.parse_cot_event",
             lambda raw: (_ for _ in ()).throw(RuntimeError("boom")),
         )
         assert rec.offer(evt(), now=1000.0) is False
@@ -375,16 +380,12 @@ class TestEncryption:
         r.offer(evt(), now=1000.0)
         r.flush(now=1000.0, force=True)
         path = next(
-            os.path.join(dp, f)
-            for dp, _, fs in os.walk(r.config.directory)
-            for f in fs
+            os.path.join(dp, f) for dp, _, fs in os.walk(r.config.directory) for f in fs
         )
         assert path.endswith(".enc")
         assert b"UAL225" not in open(path, "rb").read()
 
-    def test_raw_key_bytes_that_look_like_whitespace_are_not_stripped(
-        self, tmp_path
-    ):
+    def test_raw_key_bytes_that_look_like_whitespace_are_not_stripped(self, tmp_path):
         """AES key material is binary; leading/trailing whitespace is data."""
         key = tmp_path / "key"
         key.write_bytes(b"\n" + (b"x" * 30) + b" ")
@@ -455,7 +456,7 @@ class TestLaneIntegration:
     """
 
     def _lane(self, tmp_path, record):
-        from charontak.config import LaneSpec
+        from cotbridge.config import LaneSpec
 
         merged = {
             "ingress_cot_url": "udp://0.0.0.0:28087",
@@ -470,12 +471,14 @@ class TestLaneIntegration:
         """Start a lane, let it wire up, cancel it. Returns sides connected."""
         import asyncio
 
-        from charontak import bridge
+        from cotbridge import bridge
 
         connected = []
 
-        async def fake_connect(section, *, label, side, url, merged):
+        async def fake_connect(section, *, label, side, url, merged, on_state=None):
             connected.append(side)
+            if on_state:
+                on_state("connected")
             return object(), object()
 
         class _Worker:
@@ -492,10 +495,12 @@ class TestLaneIntegration:
         monkeypatch.setattr(bridge.pytak, "RXWorker", _Worker)
         monkeypatch.setattr(bridge.pytak, "TXWorker", _Worker)
         monkeypatch.setattr(bridge, "_discard_reader_queue", _idle)
-        monkeypatch.setattr(bridge, "_close_udp_writer", _idle)
 
         async def drive():
-            task = asyncio.create_task(bridge.run_lane(self._lane(tmp_path, record)))
+            status = bridge.BridgeStatus(path=str(tmp_path / "status.json"))
+            task = asyncio.create_task(
+                bridge.run_lane(self._lane(tmp_path, record), status)
+            )
             await asyncio.sleep(0.15)
             task.cancel()
             try:
@@ -526,7 +531,7 @@ class TestLaneIntegration:
     def test_pump_forwards_unchanged_bytes(self, tmp_path):
         import asyncio
 
-        from charontak import bridge
+        from cotbridge import bridge
 
         rec = TrackRecorder({"RECORD_DIR": str(tmp_path / "t")}, now=1000.0)
         payload = evt()
@@ -549,7 +554,7 @@ class TestLaneIntegration:
         """Moving CoT is the job. A broken recorder must not eat the event."""
         import asyncio
 
-        from charontak import bridge
+        from cotbridge import bridge
 
         class Exploding:
             def offer(self, data, **kw):
@@ -574,7 +579,7 @@ class TestLaneIntegration:
         """EMCON must not mean 'record nothing' by accident."""
         import asyncio
 
-        from charontak import bridge
+        from cotbridge import bridge
 
         rec = TrackRecorder({"RECORD_DIR": str(tmp_path / "t")}, now=1000.0)
 
@@ -592,7 +597,7 @@ class TestLaneIntegration:
 class TestConfigKeyCase:
     """ConfigParser lowercases option names.
 
-    charontak hands the recorder a lane's merged mapping, whose keys came from
+    cotbridge hands the recorder a lane's merged mapping, whose keys came from
     an ini file and are therefore lower-case. Reading only the upper-case form
     meant every setting an operator wrote was silently ignored and the default
     used instead -- the recorder reported a directory that was not the one
@@ -624,5 +629,7 @@ class TestConfigKeyCase:
         """Otherwise a lane asking for encryption would write plaintext."""
         key = tmp_path / "k"
         key.write_bytes(os.urandom(32))
-        r = TrackRecorder({"record_dir": str(tmp_path / "t"), "record_encrypt_key": str(key)})
+        r = TrackRecorder(
+            {"record_dir": str(tmp_path / "t"), "record_encrypt_key": str(key)}
+        )
         assert r.stats()["encrypted"] is True

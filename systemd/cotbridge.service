@@ -1,0 +1,28 @@
+#
+# Example systemd unit for COTBridge (manual installs).
+#
+# Debian/Ubuntu packages ship debian/cotbridge.service instead (User=cotbridge,
+# ExecStart=/usr/bin/cotbridge). For pip/venv installs, symlink cotbridge into a
+# directory on PATH or override ExecStart.
+#
+
+[Unit]
+Description=COTBridge PyTAK CoT echelon bridge
+Documentation=https://github.com/snstac/cotbridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/cotbridge
+# COTBRIDGE_CONFIG comes from EnvironmentFile (/etc/default/cotbridge); CLI default is /etc/cotbridge.ini
+ExecStart=/usr/bin/cotbridge
+Restart=on-failure
+RestartPreventExitStatus=78
+RestartSec=3
+StartLimitIntervalSec=60
+StartLimitBurst=5
+SyslogIdentifier=cotbridge
+
+[Install]
+WantedBy=multi-user.target

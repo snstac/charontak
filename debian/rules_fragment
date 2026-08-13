@@ -1,4 +1,4 @@
 
 override_dh_install:
 	dh_install
-	install -D -m0644 debian/charontak.default debian/charontak/etc/default/charontak
+	install -D -m0644 debian/cotbridge.default debian/cotbridge/etc/default/cotbridge

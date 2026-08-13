@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Patch live /etc/charontak.ini: disable tcp+ppt lane, keep mesh-to-tak."""
+"""Patch live /etc/cotbridge.ini: disable tcp+ppt lane, keep mesh-to-tak."""
 from pathlib import Path
 
-path = Path("/etc/charontak.ini")
+path = Path("/etc/cotbridge.ini")
 lines = path.read_text(encoding="utf-8").splitlines()
 out: list[str] = []
 in_tcp = False

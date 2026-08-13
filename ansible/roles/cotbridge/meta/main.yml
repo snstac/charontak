@@ -1,0 +1,8 @@
+---
+dependencies: []
+
+galaxy_info:
+  author: COTBridge contributors
+  description: Deploy COTBridge PyTAK bridge plus Cockpit (Docker Compose or bare metal).
+  license: Apache-2.0
+  min_ansible_version: "2.14"

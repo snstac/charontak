@@ -1,0 +1,86 @@
+#!/bin/bash
+# postinst — pattern from snstac/adsbcot (system user + enable service).
+
+set -e
+
+echo "cotbridge post-install"
+
+# One-time hard-cutover migration. The old executable and service are not
+# retained as aliases; only the operator's configuration is carried forward.
+systemctl disable --now charontak.service >/dev/null 2>&1 || true
+if [ ! -f /etc/cotbridge.ini ] && [ -f /etc/charontak.ini ]; then
+  sed 's/^\[charontak\]$/[cotbridge]/' /etc/charontak.ini > /etc/cotbridge.ini
+  chmod 0644 /etc/cotbridge.ini
+  mv /etc/charontak.ini /etc/charontak.ini.migrated
+fi
+if [ -f /etc/default/charontak ]; then
+  sed 's/CHARONTAK_CONFIG/COTBRIDGE_CONFIG/g; s,/etc/charontak.ini,/etc/cotbridge.ini,g; s/charontak/cotbridge/g; s/Charontak/COTBridge/g' \
+    /etc/default/charontak > /etc/default/cotbridge
+  chmod 0644 /etc/default/cotbridge
+  mv /etc/default/charontak /etc/default/charontak.migrated
+fi
+
+# shellcheck source=/dev/null
+# Values in /etc/default/cotbridge must be quoted if they contain spaces.
+if [ -f "/etc/default/cotbridge" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "/etc/default/cotbridge"
+  set +a
+fi
+
+[ -z "${SERVER_HOME:-}" ] && SERVER_HOME=/run/cotbridge
+[ -z "${SERVER_USER:-}" ] && SERVER_USER=cotbridge
+[ -z "${SERVER_NAME:-}" ] && SERVER_NAME="COTBridge PyTAK bridge system user"
+[ -z "${SERVER_GROUP:-}" ] && SERVER_GROUP=cotbridge
+
+ADDGROUP=""
+
+if ! getent group "$SERVER_GROUP" >/dev/null 2>&1; then
+  echo "Adding group $SERVER_GROUP.."
+  addgroup --quiet --system "$SERVER_GROUP" 2>/dev/null || groupadd --system "$SERVER_GROUP" 2>/dev/null || true
+fi
+
+test -d "$SERVER_HOME" || mkdir -p "$SERVER_HOME"
+
+if ! getent passwd "$SERVER_USER" >/dev/null 2>&1; then
+  echo "Adding system user $SERVER_USER.."
+  adduser --quiet \
+    --system \
+    --ingroup "$SERVER_GROUP" \
+    --no-create-home \
+    --disabled-password \
+    "$SERVER_USER" 2>/dev/null || true
+fi
+
+usermod -c "$SERVER_NAME" \
+  -d "$SERVER_HOME" \
+  -g "$SERVER_GROUP" \
+  "$SERVER_USER" 2>/dev/null || true
+
+if ! dpkg-statoverride --list "$SERVER_HOME" >/dev/null 2>&1; then
+  chown -R "$SERVER_USER":adm "$SERVER_HOME" 2>/dev/null || chown -R "$SERVER_USER:$SERVER_GROUP" "$SERVER_HOME"
+  chmod u=rwx,g=rxs,o= "$SERVER_HOME" 2>/dev/null || true
+fi
+
+if [ -n "${ADDGROUP:-}" ] && command -v adduser >/dev/null 2>&1; then
+  if ! groups "$SERVER_USER" | cut -d: -f2 | grep -qw "$ADDGROUP"; then
+    adduser "$SERVER_USER" "$ADDGROUP" 2>/dev/null || true
+  fi
+fi
+
+if [ ! -f /etc/cotbridge.ini ] && [ -f /usr/share/cotbridge/cotbridge.ini.example ]; then
+  cp /usr/share/cotbridge/cotbridge.ini.example /etc/cotbridge.ini
+  chmod 0644 /etc/cotbridge.ini
+fi
+
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable cotbridge.service >/dev/null 2>&1 || true
+systemctl restart cotbridge.service >/dev/null 2>&1 || systemctl start cotbridge.service >/dev/null 2>&1 || true
+
+echo "---- cotbridge install complete ----"
+echo "Configure: sudo nano /etc/cotbridge.ini"
+echo "Status:    sudo systemctl status cotbridge.service"
+echo "Logs:      sudo journalctl -fu cotbridge"
+
+exit 0

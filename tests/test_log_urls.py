@@ -1,6 +1,6 @@
 """Tests for log-safe COT URL redaction."""
 
-from charontak.log_urls import redact_cot_url
+from cotbridge.log_urls import redact_cot_url
 
 
 def test_redact_cot_url_masks_token() -> None:

@@ -1,0 +1,33 @@
+---
+
+cotbridge_deploy: native
+# Set to `docker` for the Compose-based image deployment.
+
+# HTTPS (default for ansible.builtin.git on targets without deploy keys).
+# SSH equivalent: git@github.com:snstac/cotbridge.git
+cotbridge_git_repo: "https://github.com/snstac/cotbridge.git"
+cotbridge_git_version: main
+
+cotbridge_sync_from_controller: false
+cotbridge_sync_src: "{{ playbook_dir }}/../"
+cotbridge_sync_delete: false
+
+cotbridge_install_dir: "/opt/cotbridge"
+cotbridge_repo_dir: "{{ cotbridge_install_dir }}/cotbridge"
+
+cotbridge_docker_profile: bridge
+cotbridge_docker_image_override: ""
+cotbridge_cockpit_port: "9090"
+
+cotbridge_cockpit_rpm_optional: true
+cotbridge_pip_break_system_packages: true
+cotbridge_pip_editable: false
+
+# INI body (see templates/cotbridge.ini.j2)
+cotbridge_global_options:
+  DEBUG: "false"
+
+cotbridge_lanes: []
+
+# Append raw INI fragments after the global section (optional).
+cotbridge_ini_extra: ""

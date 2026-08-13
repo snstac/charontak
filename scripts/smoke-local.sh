@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Operational smoke: TCP listener + charontak forward lane + idle config check.
+# Operational smoke: TCP listener + cotbridge forward lane + idle config check.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-CHARONTAK="${CHARONTAK:-$ROOT/.venv/bin/charontak}"
-SMOKE_INI="$ROOT/examples/charontak.smoke.ini"
-IDLE_INI="$ROOT/packaging/charontak.ini.example"
+COTBRIDGE="${COTBRIDGE:-$ROOT/.venv/bin/cotbridge}"
+SMOKE_INI="$ROOT/examples/cotbridge.smoke.ini"
+IDLE_INI="$ROOT/packaging/cotbridge.ini.example"
 PORT=18087
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"; kill $(jobs -p) 2>/dev/null || true' EXIT
 
-echo "== charontak smoke test =="
-echo "binary: $CHARONTAK"
+echo "== cotbridge smoke test =="
+echo "binary: $COTBRIDGE"
 
 echo "--- idle config (no enabled lanes) ---"
-timeout 2 "$CHARONTAK" -c "$IDLE_INI" 2>&1 | tee "$TMP/idle.log" || true
+timeout 2 "$COTBRIDGE" -c "$IDLE_INI" 2>&1 | tee "$TMP/idle.log" || true
 grep -q "No enabled lanes" "$TMP/idle.log"
 
 echo "--- forward lane: UDP ingress -> TCP :$PORT ---"
@@ -32,7 +32,7 @@ PY
 LISTENER=$!
 sleep 0.5
 
-timeout 5 "$CHARONTAK" -c "$SMOKE_INI" 2>&1 | tee "$TMP/lane.log" &
+timeout 5 "$COTBRIDGE" -c "$SMOKE_INI" 2>&1 | tee "$TMP/lane.log" &
 BRIDGE=$!
 sleep 2
 if grep -qE "Lane 'smoke' started|Lane .smoke. started" "$TMP/lane.log"; then
