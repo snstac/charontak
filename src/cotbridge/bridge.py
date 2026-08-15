@@ -158,10 +158,11 @@ def log_lane_plan(lanes: Tuple[LaneSpec, ...]) -> None:
         )
 
 
-async def _close_udp_writer(writer: Any) -> None:
-    if writer is None:
+async def _close_transport(transport: Any) -> None:
+    """Close any PyTAK reader or writer that owns a socket transport."""
+    if transport is None:
         return
-    close = getattr(writer, "close", None)
+    close = getattr(transport, "close", None)
     if not callable(close):
         return
     try:
@@ -169,7 +170,7 @@ async def _close_udp_writer(writer: Any) -> None:
         if asyncio.iscoroutine(result):
             await result
     except Exception as exc:  # noqa: BLE001
-        LOG.debug("close writer: %s", exc)
+        LOG.debug("close transport: %s", exc)
 
 
 async def _discard_reader_queue(cfg: SectionDict, reader: Any, label: str) -> None:
@@ -282,8 +283,13 @@ async def _run_lane_session(lane: LaneSpec, status: BridgeStatus) -> None:
                     lane.name, "output", state, detail
                 ),
             )
-        except OSError:
-            await _close_udp_writer(w_ing)
+        except BaseException:
+            # UDP read-only transports own their bound socket through r_ing;
+            # w_ing is None. Closing only the writer leaked port 28087 when a
+            # TLS setup error occurred, so every supervised retry then failed
+            # permanently with EADDRINUSE.
+            await _close_transport(r_ing)
+            await _close_transport(w_ing)
             raise
         LOG.info("%s egress connected", label)
     else:
@@ -365,7 +371,7 @@ async def _run_lane_session(lane: LaneSpec, status: BridgeStatus) -> None:
                     )
                 )
             if _is_udp_family(ing_url):
-                await _close_udp_writer(w_ing)
+                await _close_transport(w_ing)
 
         elif mode == "reverse":
             relay = status.queue(qsz)
@@ -389,7 +395,7 @@ async def _run_lane_session(lane: LaneSpec, status: BridgeStatus) -> None:
                     )
                 )
             if _is_udp_family(egr_url):
-                await _close_udp_writer(w_egr)
+                await _close_transport(w_egr)
 
         elif mode == "duplex":
             fwd = status.queue(qsz)
@@ -450,8 +456,10 @@ async def _run_lane_session(lane: LaneSpec, status: BridgeStatus) -> None:
         status.fault(lane.name, "lane worker exited")
         raise
     finally:
-        await _close_udp_writer(w_ing)
-        await _close_udp_writer(w_egr)
+        await _close_transport(r_ing)
+        await _close_transport(w_ing)
+        await _close_transport(r_egr)
+        await _close_transport(w_egr)
 
 
 async def run_lane(lane: LaneSpec, status: BridgeStatus) -> None:

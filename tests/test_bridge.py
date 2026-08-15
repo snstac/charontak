@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cotbridge.bridge import run_all, run_lane
+from cotbridge.bridge import _run_lane_session, run_all, run_lane
 from cotbridge.config import LaneSpec
 from cotbridge.status import BridgeStatus
 
@@ -27,6 +27,14 @@ class IngressReader:
 class BlockReader:
     async def readuntil(self, delimiter: bytes) -> bytes:  # noqa: ARG002
         await asyncio.sleep(3600.0)
+
+
+class CloseableReader(BlockReader):
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def test_lane_mode_bad() -> None:
@@ -223,6 +231,42 @@ async def test_protocol_factory_with_retry(
 
     assert attempts["n"] == 2
     assert any("Nothing is listening" in r.message for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_egress_setup_failure_closes_read_only_udp_ingress(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A TLS setup failure must release the UDP reader before lane retry."""
+
+    ingress = CloseableReader()
+
+    async def fake_pf(cfg):
+        url = str(cfg.get("COT_URL") or cfg.get("cot_url") or "")
+        if url.startswith("udp+ro://"):
+            return ingress, None
+        if url.startswith("tls://"):
+            raise SyntaxError("certificate hostname mismatch")
+        raise AssertionError(url)
+
+    monkeypatch.setattr("cotbridge.bridge.pytak.protocol_factory", fake_pf)
+    lane = LaneSpec(
+        name="site-output",
+        raw_section="lane:site-output",
+        merged={
+            "enabled": "true",
+            "mode": "forward",
+            "ingress_cot_url": "udp+ro://127.0.0.1:28087",
+            "egress_cot_url": "tls://example:8089",
+        },
+    )
+
+    with pytest.raises(SyntaxError, match="hostname mismatch"):
+        await _run_lane_session(
+            lane, BridgeStatus(path=str(tmp_path / "status.json"))
+        )
+
+    assert ingress.closed
 
 
 @pytest.mark.asyncio
