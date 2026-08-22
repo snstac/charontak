@@ -71,10 +71,16 @@ cotbridge --config /etc/cotbridge.ini
 
 Environment overrides (same as PyTAK-style tooling):
 
-| Variable           | Purpose                          |
-|--------------------|----------------------------------|
+| Variable | Purpose |
+|---|---|
 | `COTBRIDGE_CONFIG` | Default path if `--config` omitted |
-| `DEBUG`           | Verbose logs when truthy           |
+| `DEBUG` | Verbose logs when truthy |
+| `PYTAK_MULTICAST_LOCAL_ADDRS` | Comma/space-separated multicast source addresses; inherited by lanes unless a lane overrides it |
+| `PYTAK_MULTICAST_TTL` | Default multicast TTL; inherited by lanes unless a lane overrides it |
+
+Transport environment values sit between `[cotbridge]` defaults and explicit
+`[lane:*]` values. This lets a network manager supply runtime interface
+addresses without rewriting the operator-owned lane configuration.
 
 Logging goes to stderr; under **systemd** use `journalctl -u cotbridge`. On startup, each enabled lane logs its **ingress → egress** plan and connection steps (`setup`, `ingress connected`, `active`); enrollment `token=` values in `tak://` URLs are redacted in logs.
 

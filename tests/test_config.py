@@ -25,7 +25,7 @@ def test_truthy() -> None:
 
 def test_build_lane_specs_example(example_ini: Path) -> None:
     cp = load_config_parser(example_ini)
-    _, lanes = build_lane_specs(cp)
+    _, lanes = build_lane_specs(cp, environ={})
     names = [ln.name for ln in lanes]
     assert "mesh-to-server" in names
     assert any(ln.merged.get("mode") == "forward" for ln in lanes)
@@ -33,13 +33,58 @@ def test_build_lane_specs_example(example_ini: Path) -> None:
 
 def test_section_for_side_cot(example_ini: Path) -> None:
     cp = load_config_parser(example_ini)
-    _, lanes = build_lane_specs(cp)
+    _, lanes = build_lane_specs(cp, environ={})
     ln = lanes[0]
     s = section_for_side(ln, cot_url="udp://10.0.0.1:4242", section_suffix="ingress")
     assert s.get("COT_URL") == "udp://10.0.0.1:4242"
     assert s.get("cot_url") == "udp://10.0.0.1:4242"
     s2 = section_for_side(ln, cot_url="udp://:1234", section_suffix="ingress")
     assert s2.get("cot_url") == "udp+ro://0.0.0.0:1234"
+
+
+def test_transport_environment_is_a_lane_default(example_ini: Path) -> None:
+    cp = load_config_parser(example_ini)
+    _, lanes = build_lane_specs(
+        cp,
+        environ={
+            "PYTAK_MULTICAST_LOCAL_ADDRS": "10.41.0.1,169.254.2.3",
+            "PYTAK_MULTICAST_TTL": "2",
+            "COT_URL": "udp+wo://should-not-be-imported:9999",
+        },
+    )
+
+    assert lanes[0].merged["pytak_multicast_local_addrs"] == (
+        "10.41.0.1,169.254.2.3"
+    )
+    assert lanes[0].merged["pytak_multicast_ttl"] == "2"
+    assert "cot_url" not in lanes[0].merged
+
+
+def test_lane_transport_setting_overrides_environment() -> None:
+    from configparser import ConfigParser
+
+    cp = ConfigParser(interpolation=None)
+    cp.read_string(
+        """
+[cotbridge]
+PYTAK_MULTICAST_TTL = 1
+[lane:mesh]
+enabled = true
+ingress_cot_url = udp+ro://127.0.0.1:28087
+egress_cot_url = udp+wo://239.2.3.1:6969
+PYTAK_MULTICAST_LOCAL_ADDRS = 192.0.2.10
+"""
+    )
+    _, lanes = build_lane_specs(
+        cp,
+        environ={
+            "PYTAK_MULTICAST_LOCAL_ADDRS": "169.254.2.3",
+            "PYTAK_MULTICAST_TTL": "2",
+        },
+    )
+
+    assert lanes[0].merged["pytak_multicast_local_addrs"] == "192.0.2.10"
+    assert lanes[0].merged["pytak_multicast_ttl"] == "2"
 
 
 from cotbridge.config import lane_mode

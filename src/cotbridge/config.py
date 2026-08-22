@@ -14,6 +14,10 @@ from typing import Dict, Iterable, Iterator, Mapping, MutableMapping, Optional
 
 GLOBAL_SECTION = "cotbridge"
 LANE_PREFIX = "lane:"
+TRANSPORT_ENV_KEYS = (
+    "PYTAK_MULTICAST_LOCAL_ADDRS",
+    "PYTAK_MULTICAST_TTL",
+)
 
 
 @dataclass(frozen=True)
@@ -82,13 +86,25 @@ def _parse_global(cp: ConfigParser) -> MutableMapping[str, str]:
 
 
 def _merge(
-    global_opts: Mapping[str, str], section: Iterable[tuple[str, str]]
+    global_opts: Mapping[str, str],
+    env_opts: Mapping[str, str],
+    section: Iterable[tuple[str, str]],
 ) -> Dict[str, str]:
     out = dict(global_opts)
+    out.update(env_opts)
     for k, v in section:
-        # Skip empty deletes
         out[k.lower()] = v
     return out
+
+
+def _transport_env(environ: Mapping[str, str]) -> Dict[str, str]:
+    """Return the allowlisted PyTAK transport defaults from the environment."""
+
+    return {
+        key.lower(): environ[key]
+        for key in TRANSPORT_ENV_KEYS
+        if environ.get(key, "").strip()
+    }
 
 
 def lane_sections(cp: ConfigParser) -> Iterator[tuple[str, str]]:
@@ -114,14 +130,15 @@ def load_config_parser(path: Path) -> ConfigParser:
 
 
 def build_lane_specs(
-    cp: ConfigParser,
+    cp: ConfigParser, environ: Optional[Mapping[str, str]] = None
 ) -> tuple[MutableMapping[str, str], tuple[LaneSpec, ...]]:
-    """Return globals and enabled lane specs with merged keys."""
+    """Return lanes merged as INI globals, transport environment, then lane."""
 
     globals_ = _parse_global(cp)
+    env_opts = _transport_env(os.environ if environ is None else environ)
     specs: list[LaneSpec] = []
     for display_name, section_name in lane_sections(cp):
-        merged_raw = _merge(globals_, cp[section_name].items())
+        merged_raw = _merge(globals_, env_opts, cp[section_name].items())
         # Required keys enforced at startup in bridge/run
         specs.append(
             LaneSpec(name=display_name, raw_section=section_name, merged=merged_raw)
